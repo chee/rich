@@ -1,0 +1,5 @@
+allowBuilds:
+  cbor-extract: true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - wordgard@0.1.0

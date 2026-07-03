@@ -1,0 +1,39 @@
+@layer package {
+  :root,
+  :host,
+  [theme] {
+    --rich-fill: var(--editor-fill, white);
+    --rich-line: var(--editor-line, black);
+    --rich-muted: var(--editor-line-offset-50, #999);
+    --rich-border: var(--editor-fill-offset-20, #ddd);
+    --rich-family: var(--editor-family-sans, system-ui, sans-serif);
+    --rich-accent: var(--studio-primary, #35f7ca);
+    --rich-embed-bg: color-mix(in oklch, var(--editor-fill), var(--editor-line) 3%);
+  }
+}
+
+.rich-tool {
+  height: 100%;
+  background: var(--rich-fill);
+  color: var(--rich-line);
+  font-family: var(--rich-family);
+}
+
+/* A dropped document embeds as a bordered card. Wordgard renders the atom
+   leaf as <patchwork-view>, which mounts the referenced document itself. */
+.rich-tool patchwork-view {
+  display: block;
+  margin: var(--studio-space-sm, 0.5rem) 0;
+  border: 1px solid var(--rich-border);
+  border-radius: var(--studio-radius-md, 8px);
+  background: var(--rich-embed-bg);
+  overflow: hidden;
+  max-height: 480px;
+}
+
+/* Selected embed (Wordgard marks node selections). */
+.rich-tool patchwork-view[data-selected],
+.rich-tool .wg-selected patchwork-view {
+  outline: 2px solid var(--rich-accent);
+  outline-offset: 1px;
+}
