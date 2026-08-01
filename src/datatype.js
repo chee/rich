@@ -2,6 +2,7 @@ import * as am from "@automerge/automerge"
 import { spansFromDoc } from "@automerge/wordgard"
 import { Paragraph } from "wordgard/types"
 import { richAdapter } from "./adapter.js"
+import { builtinFullIds } from "./plugin-catalog.js"
 
 // The document model: a `content` rich-text field (edited via
 // @automerge/wordgard) plus an optional `title`.
@@ -9,6 +10,9 @@ export const RichDatatype = {
   init(doc) {
     doc.title = ""
     doc.content = ""
+    // The enabled full-tier plugin ids. Core-tier plugins are always on; the
+    // `/plugins` command edits this array.
+    doc.plugins = builtinFullIds()
     // Seed a single empty paragraph so every peer starts from the same
     // block structure (avoids two peers concurrently creating a first
     // paragraph).

@@ -1,14 +1,22 @@
-import { Leaf, Node } from "wordgard/doc"
+import * as am from "@automerge/automerge"
+import { Leaf, Mark, Node, Plot } from "wordgard/doc"
+import { Image, ImageAlt } from "wordgard/types"
 import { SchemaAdapter, basicSchemaSpec } from "@automerge/wordgard"
+import { srcForImage } from "./files.js"
 
-// A block-level embed leaf. Its parameter is the AutomergeUrl of the
-// embedded document. Its shape renders a `<patchwork-view doc-url="…">`,
-// the host custom element that mounts another Patchwork document inline —
-// so no manual node view is needed: Wordgard renders the atom and the
-// element mounts itself.
+// An embedded Patchwork document. Its parameter is the document's
+// AutomergeUrl; its shape renders `<patchwork-view doc-url="…">`, the host
+// custom element that mounts that document inline — so no manual node view is
+// needed: Wordgard renders the atom and the element mounts itself.
+//
+// It is an INLINE leaf, written with `isEmbed: true`, because that is how the
+// Automerge rich-text schema spells an embed and how other editors on this
+// datatype (chee's Swift richtext app) write theirs. A block-level embed node
+// makes their documents fail to load with "Paragraph cannot contain child
+// Embed"; CSS gives it block layout inside its paragraph instead.
 export const Embed = Leaf.Type.define("Embed", {
+  inline: true,
   validate: "string",
-  group: Node.Group.Content,
   selectable: true,
   shape: {
     element: "patchwork-view",
@@ -16,16 +24,90 @@ export const Embed = Leaf.Type.define("Embed", {
   },
 })
 
+// Our own image leaf, replacing wordgard's, so the `src` may be the
+// AutomergeUrl of a Patchwork file document as well as an ordinary URL: the
+// document keeps the automerge URL (durable, host-independent) and only the
+// rendered `<img>` gets the service-worker URL. It still maps to the standard
+// `image` block, so plain-URL images stay interoperable.
+export const RichImage = Leaf.Type.define("RichImage", {
+  inline: true,
+  validate: "string",
+  selectable: true,
+  shape: {
+    element: "img",
+    attributes: src => ({ src: srcForImage(src) }),
+  },
+  parseRules: [{ selector: "img[src]", readElement: element => element.src }],
+})
+
+// Columns. A `Columns` row holds `Column`s, each holding ordinary block
+// content — the Notion arrangement. `orientation: "row"` tells wordgard the
+// children sit side by side, so cursor motion across them behaves.
+const ColumnGroup = Node.Group.define()
+
+export const Column = Plot.define("Column", {
+  group: ColumnGroup,
+  blockContent: Node.Group.Content,
+  isolating: true,
+  defining: true,
+  shape: { element: "div", attributes: { class: "rich-column" } },
+})
+
+export const Columns = Plot.define("Columns", {
+  group: Node.Group.Content,
+  blockContent: ColumnGroup,
+  orientation: "row",
+  defining: true,
+  shape: { element: "div", attributes: { class: "rich-columns" } },
+})
+
+const amString = value => {
+  if (value == null) return null
+  return am.isImmutableString(value) ? value.val : String(value)
+}
+
+const isImageBlock = block => block.node === Image
+const withoutImage = list => list.filter(entry => !isImageBlock(entry))
+
 // The schema adapter for the "rich" tool: the basic Automerge rich-text
-// mapping plus the embed block.
+// mapping, with our image node in place of the built-in one, plus the embed
+// leaf and the column blocks.
 export const richAdapter = new SchemaAdapter({
   ...basicSchemaSpec,
-  elements: [...basicSchemaSpec.elements, Embed],
+  elements: [
+    ...basicSchemaSpec.elements.filter(element => element !== Image),
+    RichImage,
+    Columns,
+    Column,
+    Embed,
+  ],
   blocks: [
-    ...basicSchemaSpec.blocks,
+    ...withoutImage(basicSchemaSpec.blocks),
+    {
+      node: RichImage,
+      block: "image",
+      isEmbed: true,
+      attrs: {
+        fromAutomerge: block => {
+          const src = amString(block.attrs.src) ?? ""
+          const alt = amString(block.attrs.alt)
+          const marks = alt != null ? ImageAlt.of(alt).addToSet(Mark.none) : Mark.none
+          return { param: src, marks }
+        },
+        fromWordgard: node => {
+          const attrs = { src: new am.ImmutableString(node.param) }
+          const alt = node.mark(ImageAlt)
+          if (alt != null) attrs.alt = alt
+          return attrs
+        },
+      },
+    },
+    { node: Columns, block: "columns" },
+    { node: Column, block: "column" },
     {
       node: Embed,
       block: "embed",
+      isEmbed: true,
       attrs: {
         fromAutomerge: block => ({ param: String(block.attrs.url ?? "") }),
         fromWordgard: node => ({ url: node.param }),
