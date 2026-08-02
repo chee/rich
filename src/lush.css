@@ -57,8 +57,18 @@
   hyphens: auto;
 }
 
+/* Notey, not blocky: pressing return gives you the next line, not a gap.
+   The blocks that need air ask for it themselves. */
 .lush-tool .lush-page wg-content > * {
-  margin: 0 0 0.55em;
+  margin: 0;
+}
+
+.lush-tool .lush-page wg-content > pre,
+.lush-tool .lush-page wg-content > ul,
+.lush-tool .lush-page wg-content > ol,
+.lush-tool .lush-page wg-content > img,
+.lush-tool .lush-page wg-content > hr {
+  margin: 0.7em 0;
 }
 
 /* Notes-style: the first line of the note is its title — but only when it is

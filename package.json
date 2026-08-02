@@ -1,5 +1,6 @@
 {
   "name": "@patchwork/lush",
+  "title": "Lush",
   "version": "0.0.1",
   "description": "Collaborative rich text editor (Wordgard) for Patchwork",
   "type": "module",
