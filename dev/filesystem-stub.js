@@ -19,7 +19,9 @@ async function resolve(url) {
     blobs.set(url, objectUrl)
     const roots = [document, ...[...document.querySelectorAll("*")].map(e => e.shadowRoot).filter(Boolean)]
     for (const root of roots) {
-      for (const img of root.querySelectorAll('img[src=""]')) img.src = objectUrl
+      for (const media of root.querySelectorAll('img[src=""], video[src=""], audio[src=""]')) {
+        media.src = objectUrl
+      }
     }
   } catch (error) {
     console.error("filesystem stub:", error)

@@ -121,9 +121,28 @@ const STYLE = `
   .rich-embed-tool-hint { padding: 4px 6px; font-size: 0.75rem; color: var(--rich-muted, #888); }
   .rich-embed-body { display: block; min-height: 2.5rem; max-height: 420px; overflow: hidden; }
   .rich-embed-body patchwork-view { display: block; width: 100%; height: 420px; }
-  img { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--rich-sunk, #eee); }
+  img, video { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--rich-sunk, #eee); }
+  audio { display: block; width: 100%; }
+
+  /* Media is itself: no window, no titlebar, nothing to open. */
+  :host([media]) {
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+  }
+  :host([media]) .rich-embed-bar { display: none; }
+  :host([media]) .rich-embed-body { max-height: none; }
+  :host([media="audio"]) { margin: 0.5rem 0; }
   .rich-embed-loading { display: grid; place-items: center; height: 3rem; color: var(--rich-faint, #bbb); }
 `
+
+// Media renders as itself. The mime type's top level is the element's name,
+// which is the whole mapping.
+function mediaKind(mimeType) {
+  const kind = String(mimeType ?? "").split("/")[0]
+  return kind === "image" || kind === "video" || kind === "audio" ? kind : null
+}
 
 async function loadDoc(url) {
   const repo = globalThis.repo
@@ -323,17 +342,27 @@ class RichEmbed extends HTMLElement {
     const doc = await loadDoc(url)
     if (this.rendered !== url) return
     const type = doc?.["@patchwork"]?.type ?? ""
-    const isImage = type === "file" && String(doc?.mimeType ?? "").startsWith("image/")
+    const media = type === "file" ? mediaKind(doc?.mimeType) : null
 
     this.docType = type
     this.title$.textContent = await titleOf(doc, type)
     this.kind$.textContent = this.getAttribute("tool-id") || type || "tool"
-    this.dataset.kind = isImage ? "image" : type || "document"
+    // A picture, a video or a sound is just itself: no window, no tool, no
+    // chrome to open. Anything else is a document, and gets the window. Asking
+    // for a tool by id is asking for the document, so that wins.
+    const inline = this.getAttribute("tool-id") ? null : media
+    this.dataset.kind = media || type || "document"
+    if (inline) this.setAttribute("media", inline)
+    else this.removeAttribute("media")
     if (this.rendered !== url) return
 
     this.body$.replaceChildren(
-      isImage
-        ? el("img", { class: "rich-embed-image", src: automergeUrlToServiceWorkerUrl(url) })
+      inline
+        ? el(inline === "image" ? "img" : inline, {
+            class: `rich-embed-${inline}`,
+            src: automergeUrlToServiceWorkerUrl(url),
+            ...(inline === "image" ? {} : { controls: true, preload: "metadata" }),
+          })
         : el("patchwork-view", {
             "doc-url": url,
             ...(this.getAttribute("tool-id") ? { "tool-id": this.getAttribute("tool-id") } : {}),

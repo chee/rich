@@ -32,6 +32,15 @@ export default defineConfig({
         entryFileNames: "[name].js",
         chunkFileNames: "assets/[name]-[hash].js",
         assetFileNames: "assets/[name][extname]",
+        // Wordgard ships as separate entry points; keeping them separate here
+        // too turns one enormous chunk into a handful of fetchable ones, and
+        // the parts only some features use (`command`, `table`) ride with the
+        // chunk that imports them rather than with the editor.
+        manualChunks(id) {
+          const wordgard = /\/wordgard\/dist\/([^/]+)\.js$/.exec(id)
+          if (wordgard) return `wordgard-${wordgard[1]}`
+          if (id.includes("/node_modules/")) return "vendor"
+        },
       },
       preserveEntrySignatures: "strict",
     },

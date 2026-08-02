@@ -10,10 +10,13 @@ import { GardState, Transaction } from "wordgard/state"
 import { Command, insertText } from "wordgard/command"
 import { Cell, CodeBlock, HeaderCell, Paragraph, Table, TableRow } from "wordgard/types"
 import { Column, Columns } from "./adapter.js"
-import { insertImageUrl, uploadImage } from "./images.js"
-import { openPluginsPanel } from "./plugins-panel.js"
 import { el } from "./dom.js"
 import { icon } from "./icons.js"
+
+// Both of these run only when a command does, so they arrive as their own
+// chunks rather than riding in with the menu.
+const images = () => import("./images.js")
+const pluginsPanel = () => import("./plugins-panel.js")
 
 const command = (id, name, group, icon, keywords, run) => ({
   type: "rich:slash",
@@ -27,8 +30,8 @@ const command = (id, name, group, icon, keywords, run) => ({
 })
 
 export const slashCommands = [
-  command("image", "Image", "Media", "image", ["picture", "photo", "upload", "file"], wg =>
-    uploadImage(wg),
+  command("image", "Image", "Media", "image", ["picture", "photo", "upload", "file"], async wg =>
+    (await images()).uploadImage(wg),
   ),
   command(
     "image-url",
@@ -56,7 +59,9 @@ export const slashCommands = [
     keywords: ["extensions", "features", "settings"],
     tier: "core",
     run: (wg, context) =>
-      openPluginsPanel({ parent: context.element, handle: context.handle }),
+      pluginsPanel().then(panel =>
+        panel.openPluginsPanel({ parent: context.element, handle: context.handle }),
+      ),
   },
 ]
 
@@ -112,9 +117,9 @@ function insertImageFromUrl(wg) {
     input: { name: "src", type: "url", placeholder: "https://…" },
     submitLabel: "Insert",
   })
-  result.then(form => {
+  result.then(async form => {
     const src = form?.elements?.src?.value?.trim()
-    if (src) insertImageUrl(wg, src)
+    if (src) (await images()).insertImageUrl(wg, src)
   })
 }
 
