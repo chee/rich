@@ -12,8 +12,9 @@ import { formatBar } from "./format-bar.js"
 import { imageDropAndPaste } from "./images.js"
 import { slashCommands, slashMenu } from "./slash.js"
 import { blockTypes } from "./block-types.js"
+import { tableEditing } from "./tables.js"
 import { getDndPayload, hasDocumentDrag } from "./dnd.js"
-import { Embed } from "./adapter.js"
+import { Embed, EmbedTool } from "./adapter.js"
 import { loadedPlugins } from "./registry.js"
 
 const feature = (id, name, tier, extensions) => ({
@@ -52,9 +53,38 @@ function embedExtensions() {
     return true
   }
 
+  // `<rich-embed>` asks for a tool by dispatching an event: it draws the menu,
+  // the editor owns the document.
+  const chooseTool = Wordgard.Plugin.define(wg => {
+    const onChoose = event => {
+      const element = event.target.closest?.("rich-embed") ?? event.target
+      let found
+      try {
+        found = wg.nodeFromDOM(element)
+      } catch {
+        return
+      }
+      if (!found) return
+      const node = wg.state.doc.resolve(found.pos).nodeAfter
+      if (!node) return
+      const toolId = event.detail?.toolId
+      const existing = EmbedTool.isInSet(node.marks)
+      const changes = []
+      if (existing) changes.push({ from: found.pos, to: found.pos + 1, remove: existing })
+      if (toolId) changes.push({ from: found.pos, to: found.pos + 1, add: EmbedTool.of(toolId) })
+      if (changes.length) wg.dispatch({ changes, userEvent: "embed.tool" })
+    }
+    return {
+      connect: () => wg.dom.addEventListener("rich-embed-tool", onChoose),
+      disconnect: () => wg.dom.removeEventListener("rich-embed-tool", onChoose),
+      remove: () => wg.dom.removeEventListener("rich-embed-tool", onChoose),
+    }
+  }).extension
+
   return [
     GardState.prec.highest(Wordgard.domEventHandler("dragover", onDragOver)),
     GardState.prec.highest(Wordgard.domEventHandler("drop", onDrop)),
+    chooseTool,
     dropCursor(),
   ]
 }
@@ -73,6 +103,7 @@ const typographyRules = [
 export const featurePlugins = [
   feature("slash", "Slash menu", "core", context => slashMenu(context)),
   feature("blocks", "Block handles", "core", context => blockGutter(context)),
+  feature("tables", "Table editing", "core", () => tableEditing()),
   feature("images", "Image paste & drop", "core", () => imageDropAndPaste()),
   feature("embed", "Document embeds", "core", embedExtensions),
   feature("placeholder", "Placeholder", "core", () => placeholder("Start writing…")),

@@ -12,7 +12,7 @@ import {
 } from "wordgard/types"
 import { SchemaAdapter, basicSchemaSpec } from "./wordgard/index.js"
 import { srcForImage } from "./files.js"
-import { FillColor, InkColor, colorParsers } from "./colors.js"
+import { Highlight, highlightParsers } from "./highlight.js"
 
 // An embedded Patchwork document. Its parameter is the document's
 // AutomergeUrl; its shape renders `<rich-embed doc-url="…">` (see
@@ -24,6 +24,14 @@ import { FillColor, InkColor, colorParsers } from "./colors.js"
 // datatype (chee's Swift richtext app) write theirs. A block-level embed node
 // makes their documents fail to load with "Paragraph cannot contain child
 // Embed"; CSS gives it block layout inside its paragraph instead.
+// Which tool renders an embedded document. A mark rather than part of the
+// parameter, so it rides along as a `tool-id` attribute on the element and
+// stays out of the document's URL.
+export const EmbedTool = Mark.Type.define("EmbedTool", {
+  validate: "string",
+  shape: { attribute: "tool-id", value: 0 },
+})
+
 export const Embed = Leaf.Type.define("Embed", {
   inline: true,
   validate: "string",
@@ -100,8 +108,8 @@ export const richAdapter = new SchemaAdapter({
     HeaderCell,
     ColSpan,
     RowSpan,
-    InkColor,
-    FillColor,
+    Highlight,
+    EmbedTool,
     Embed,
   ],
   blocks: [
@@ -138,8 +146,19 @@ export const richAdapter = new SchemaAdapter({
       block: "embed",
       isEmbed: true,
       attrs: {
-        fromAutomerge: block => ({ param: String(block.attrs.url ?? "") }),
-        fromWordgard: node => ({ url: node.param }),
+        fromAutomerge: block => {
+          const tool = amString(block.attrs.tool)
+          return {
+            param: String(block.attrs.url ?? ""),
+            marks: tool ? EmbedTool.of(tool).addToSet(Mark.none) : Mark.none,
+          }
+        },
+        fromWordgard: node => {
+          const attrs = { url: node.param }
+          const tool = node.mark(EmbedTool)
+          if (tool != null) attrs.tool = tool
+          return attrs
+        },
       },
     },
   ],
@@ -147,8 +166,8 @@ export const richAdapter = new SchemaAdapter({
     ...basicSchemaSpec.marks,
     { mark: ColSpan, name: "colspan", parsers: numberMark },
     { mark: RowSpan, name: "rowspan", parsers: numberMark },
-    // Colours are stored by NAME ("pink"), so a theme decides what pink is.
-    { mark: InkColor, name: "color", parsers: colorParsers },
-    { mark: FillColor, name: "background-color", parsers: colorParsers },
+    // Highlights are stored by NAME ("pink"), so the theme decides what pink
+    // looks like.
+    { mark: Highlight, name: "highlight", parsers: highlightParsers },
   ],
 })

@@ -62,6 +62,9 @@ async function slash(query, expected) {
 async function freshPage() {
   const fresh = await browser.newPage({ viewport: { width: 1100, height: 800 } })
   fresh.on("pageerror", error => errors.push(String(error)))
+  // The selection bar hides itself when the editor doesn't have focus, and a
+  // background tab doesn't.
+  await fresh.bringToFront()
   await fresh.goto(url)
   await fresh.waitForSelector("wg-content")
   await fresh.click("wg-content")
@@ -217,23 +220,50 @@ await page.keyboard.press("Escape")
     caret: "initial",
   })
 
-  await menu.locator('.rich-swatch[data-role="ink"][data-color="pink"]').click()
-  await menu.waitForTimeout(200)
-  await menu.locator('.rich-swatch[data-role="fill"][data-color="yellow"]').click()
-  await menu.waitForTimeout(250)
-  check("colours apply", (await menu.$$("wg-content .rich-ink-pink .rich-fill-yellow")).length > 0)
-
   await menu.locator(".rich-block-menu-item", { hasText: "Heading 2" }).click()
   await menu.waitForTimeout(300)
   check("block menu converts the block", (await menu.$$("wg-content h2")).length > 0)
-
-  const coloured = await menu.evaluate(() => window.richDev.roundTrip())
-  check("colours round trip", coloured.live === coloured.rebuilt)
-  const marks = await menu.evaluate(() =>
-    JSON.stringify(JSON.parse(window.richDev.roundTrip().spans).find(s => s.marks)?.marks ?? null),
-  )
-  check("colours are stored by name", marks?.includes("pink"), String(marks))
   await menu.close()
+}
+
+// Highlighting a span, from the bar that appears over a selection.
+{
+  const marker = await freshPage()
+  await marker.keyboard.type("Title", { delay: 40 })
+  await marker.keyboard.press("Enter")
+  await marker.keyboard.type("highlight me please", { delay: 40 })
+  await marker.keyboard.press("Home")
+  for (let i = 0; i < 10; i++) await marker.keyboard.press("ArrowRight")
+  await marker.keyboard.down("Shift")
+  for (let i = 0; i < 6; i++) await marker.keyboard.press("ArrowRight")
+  await marker.keyboard.up("Shift")
+  await marker.waitForTimeout(300)
+  const swatches = await marker.$$eval(".rich-highlight-swatch", items =>
+    items.map(item => item.dataset.highlight),
+  )
+  check(
+    "the selection bar offers the highlights",
+    swatches.join(",") === "pink,yellow,sky,sea,mint,none",
+    swatches.join(","),
+  )
+  await marker.locator('.rich-highlight-swatch[data-highlight="mint"]').click()
+  await marker.waitForTimeout(300)
+  check("highlight applies", (await marker.$$("wg-content .rich-highlight-mint")).length === 1)
+  const trip = await marker.evaluate(() => window.richDev.roundTrip())
+  check("highlights round trip", trip.live === trip.rebuilt)
+  const marks = await marker.evaluate(
+    () => JSON.parse(window.richDev.roundTrip().spans).find(span => span.marks)?.marks ?? null,
+  )
+  check("highlights are stored by name", marks?.highlight === "mint", JSON.stringify(marks))
+  await marker.screenshot({
+    path: new URL("./shots/02c-highlight.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+
+  await marker.locator('.rich-highlight-swatch[data-highlight="none"]').click()
+  await marker.waitForTimeout(250)
+  check("highlight clears", (await marker.$$("wg-content .rich-highlight")).length === 0)
+  await marker.close()
 }
 
 // Columns
@@ -403,6 +433,7 @@ check("no page errors", errors.length === 0, errors.slice(0, 3).join(" / "))
 // Embedded documents draw their own window chrome and render image files as
 // images.
 const refs = await browser.newPage({ viewport: { width: 1100, height: 800 } })
+await refs.bringToFront()
 await refs.goto(url)
 await refs.waitForSelector("wg-content")
 const dropped = await refs.evaluate(async () => {
@@ -458,11 +489,80 @@ await refs.screenshot({
   caret: "initial",
 })
 
+// The tool an embed renders with: a filterable menu, or an id typed by hand.
+const pick = (selector, action = "click") =>
+  refs.evaluate(
+    ({ selector, action }) => {
+      const root = document.querySelectorAll("rich-embed")[1].shadowRoot
+      const element = root.querySelector(selector)
+      if (!element) return null
+      if (action === "click") element.click()
+      return element.textContent
+    },
+    { selector, action },
+  )
+await pick(".rich-embed-kind")
+await refs.waitForTimeout(300)
+const tools = await refs.evaluate(() =>
+  [...document.querySelectorAll("rich-embed")[1].shadowRoot.querySelectorAll(".rich-embed-tool")].map(
+    tool => tool.dataset.tool,
+  ),
+)
+check("embed offers the tools for its datatype", tools.includes("rich") && tools.includes(""), tools.join(", "))
+await refs.evaluate(() => {
+  const root = document.querySelectorAll("rich-embed")[1].shadowRoot
+  const search = root.querySelector(".rich-embed-tool-search")
+  search.value = "raw"
+  search.dispatchEvent(new Event("input", { bubbles: true }))
+})
+await refs.waitForTimeout(200)
+const filteredTools = await refs.evaluate(() =>
+  [...document.querySelectorAll("rich-embed")[1].shadowRoot.querySelectorAll(".rich-embed-tool")].map(
+    tool => tool.dataset.tool,
+  ),
+)
+check("tool menu filters", filteredTools.join(",") === ",raw", filteredTools.join(","))
+await refs.screenshot({
+  path: new URL("./shots/08-tool-picker.png", import.meta.url).pathname,
+  caret: "initial",
+})
+await refs.evaluate(() =>
+  document
+    .querySelectorAll("rich-embed")[1]
+    .shadowRoot.querySelector('.rich-embed-tool[data-tool="raw"]')
+    .click(),
+)
+await refs.waitForTimeout(400)
+check(
+  "choosing a tool sets it on the embed",
+  (await refs.evaluate(() => document.querySelectorAll("rich-embed")[1]?.getAttribute("tool-id"))) ===
+    "raw",
+)
+const embedTrip = await refs.evaluate(() => window.richDev.roundTrip())
+check(
+  "the tool is stored on the block",
+  embedTrip.spans.includes('"tool":"raw"') && embedTrip.live === embedTrip.rebuilt,
+)
+await refs.evaluate(() => {
+  const root = document.querySelectorAll("rich-embed")[1].shadowRoot
+  root.querySelector(".rich-embed-kind").click()
+  const search = root.querySelector(".rich-embed-tool-search")
+  search.value = "some-other-tool"
+  search.dispatchEvent(new Event("input", { bubbles: true }))
+  search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+})
+await refs.waitForTimeout(400)
+check(
+  "an id can be typed in by hand",
+  (await refs.evaluate(() => document.querySelectorAll("rich-embed")[1]?.getAttribute("tool-id"))) ===
+    "some-other-tool",
+)
 // A real document written by the Swift richtext app: its pasted images are
 // inline `embed` blocks, which used to fail schema validation on load.
 const foreign = await browser.newPage({ viewport: { width: 1100, height: 800 } })
 const foreignErrors = []
 foreign.on("pageerror", error => foreignErrors.push(String(error)))
+await foreign.bringToFront()
 await foreign.goto(`${url}?fixture=swift-embed`)
 await foreign.waitForSelector("wg-content", { timeout: 8000 })
 await foreign.waitForTimeout(500)

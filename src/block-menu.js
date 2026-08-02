@@ -2,37 +2,13 @@
 // it, duplicate it, delete it. The block types are the same `rich:block`
 // plugins the slash menu offers, so a contributed type shows up in both.
 import { Slice } from "wordgard/doc"
-import { COLORS, FillColor, InkColor, colorChanges } from "./colors.js"
 import { el } from "./dom.js"
 import { icon } from "./icons.js"
+import { TABLE_BLOCK_ACTIONS, tableAtPos } from "./tables.js"
 
 function put(wg, range) {
   // Commands act on the selection, so move it into the block first.
   wg.dispatch({ selection: { anchor: range.from + 1 } })
-}
-
-function colorRow(wg, range, label, type) {
-  const swatch = color =>
-    el("button", {
-      class: `rich-swatch rich-swatch-${color}`,
-      type: "button",
-      title: `${label}: ${color}`,
-      "data-color": color,
-      "data-role": type === InkColor ? "ink" : "fill",
-      onclick: () => {
-        wg.dispatch({
-          changes: colorChanges(wg.state.doc, type, color, range.from + 1, range.to - 1),
-          userEvent: "format.color",
-        })
-        wg.focus()
-      },
-    })
-  return el(
-    "div",
-    { class: "rich-block-menu-colors" },
-    el("span", { class: "rich-block-menu-label" }, label),
-    el("div", { class: "rich-swatches" }, COLORS.map(swatch)),
-  )
 }
 
 export function openBlockMenu({ wg, parent, anchor, blockTypes, range, context }) {
@@ -91,13 +67,22 @@ export function openBlockMenu({ wg, parent, anchor, blockTypes, range, context }
     wg.dispatch({ changes: { from: range.from, to: range.to }, userEvent: "delete.block" })
   }
 
+  const table = tableAtPos(wg.state, range.from)
+
+  const tableButton = action =>
+    el(
+      "button",
+      { class: "rich-block-menu-item", type: "button", onclick: act(() => action.run(wg, table)) },
+      el("span", { class: "rich-slash-name" }, action.label),
+    )
+
   const menu = el(
     "div",
     { class: "rich-block-menu" },
     el("div", { class: "rich-block-menu-group" }, "Turn into"),
     ...blockTypes.map(typeButton),
-    colorRow(wg, range, "Text", InkColor),
-    colorRow(wg, range, "Background", FillColor),
+    table ? el("div", { class: "rich-block-menu-group" }, "Table") : null,
+    ...(table ? TABLE_BLOCK_ACTIONS.map(tableButton) : []),
     el("div", { class: "rich-block-menu-group" }, "Block"),
     el(
       "button",

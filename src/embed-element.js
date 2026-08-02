@@ -9,7 +9,7 @@
 // updates its own insides without wordgard's DOM observer having to know.
 import { openDocument } from "@inkandswitch/patchwork-elements"
 import { automergeUrlToServiceWorkerUrl } from "@inkandswitch/patchwork-filesystem"
-import { getRegistry } from "@inkandswitch/patchwork-plugins"
+import { getRegistry, getSupportedToolsForType } from "@inkandswitch/patchwork-plugins"
 import { el, svg } from "./dom.js"
 
 const NAME = "rich-embed"
@@ -68,15 +68,57 @@ const STYLE = `
     color: var(--rich-line, inherit);
   }
   .rich-embed-kind {
+    all: unset;
     flex-shrink: 0;
-    padding-left: 4px;
-    font-size: 0.6875rem;
-    font-weight: 400;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font: 400 0.6875rem var(--rich-family, system-ui, sans-serif);
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--rich-muted, #888);
     background: var(--rich-fill, white);
+    cursor: pointer;
   }
+  .rich-embed-kind:hover { color: var(--rich-line, black); background: var(--rich-sunk, #eee); }
+  .rich-embed-tools {
+    padding: 6px;
+    border-bottom: 1px solid var(--rich-border, #ddd);
+    background: var(--rich-panel, #fafafa);
+    font: 0.8125rem var(--rich-family, system-ui, sans-serif);
+    color: var(--rich-line, inherit);
+  }
+  .rich-embed-tools[hidden] { display: none; }
+  .rich-embed-tool-search {
+    all: unset;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--rich-border, #ddd);
+    border-radius: 6px;
+    background: var(--rich-fill, white);
+    color: var(--rich-line, inherit);
+  }
+  .rich-embed-tool-list { max-height: 9rem; overflow-y: auto; margin-top: 4px; }
+  .rich-embed-tool {
+    all: unset;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 4px 6px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .rich-embed-tool:hover { background: var(--rich-sunk, #eee); }
+  .rich-embed-tool.current { background: color-mix(in oklch, var(--rich-accent, gold) 25%, transparent); }
+  .rich-embed-tool-id {
+    margin-left: auto;
+    font-family: var(--rich-mono, monospace);
+    font-size: 0.6875rem;
+    color: var(--rich-muted, #888);
+  }
+  .rich-embed-tool-hint { padding: 4px 6px; font-size: 0.75rem; color: var(--rich-muted, #888); }
   .rich-embed-body { display: block; min-height: 2.5rem; max-height: 420px; overflow: hidden; }
   .rich-embed-body patchwork-view { display: block; width: 100%; height: 420px; }
   img { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--rich-sunk, #eee); }
@@ -92,6 +134,15 @@ async function loadDoc(url) {
   } catch (error) {
     console.warn("rich: could not load embedded document", url, error)
     return null
+  }
+}
+
+// The tools registered for a datatype, if the host has a registry.
+function toolsFor(type) {
+  try {
+    return (getSupportedToolsForType(type) ?? []).filter(tool => !tool.unlisted)
+  } catch {
+    return []
   }
 }
 
@@ -141,18 +192,127 @@ class RichEmbed extends HTMLElement {
         if (url) openDocument(this, url, this.getAttribute("tool-id") || undefined)
       },
     })
-    this.kind$ = el("span", { class: "rich-embed-kind" })
+    this.kind$ = el("button", {
+      class: "rich-embed-kind",
+      type: "button",
+      title: "Choose the tool that renders this document",
+      onclick: event => {
+        event.preventDefault()
+        event.stopPropagation()
+        this.toggleTools()
+      },
+    })
     this.body$ = el("div", { class: "rich-embed-body" })
+    this.tools$ = el("div", { class: "rich-embed-tools", hidden: true })
     this.shadowRoot.append(
       el("div", { class: "rich-embed-bar" }, this.open$, this.title$, this.kind$),
+      this.tools$,
       this.body$,
     )
   }
 
+  // A filterable list of the tools that can render this document. Typing a
+  // name filters; typing anything and pressing Enter sets that tool id, so a
+  // tool the registry doesn't know about can still be used.
+  toggleTools() {
+    if (!this.tools$.hidden) return this.closeTools()
+    const current = this.getAttribute("tool-id") ?? ""
+    const tools = toolsFor(this.docType ?? "")
+    const list = el("div", { class: "rich-embed-tool-list" })
+
+    const choose = id => {
+      this.closeTools()
+      // The element doesn't own the document; the editor listens for this.
+      this.dispatchEvent(
+        new CustomEvent("rich-embed-tool", {
+          detail: { toolId: id || null },
+          bubbles: true,
+          composed: true,
+        }),
+      )
+    }
+
+    const search = el("input", {
+      class: "rich-embed-tool-search",
+      type: "text",
+      placeholder: "Tool id…",
+      value: current,
+      oninput: () => draw(search.value.trim().toLowerCase()),
+      onkeydown: event => {
+        if (event.key === "Escape") return this.closeTools()
+        if (event.key !== "Enter") return
+        event.preventDefault()
+        const typed = search.value.trim()
+        const shown = list.querySelector(".rich-embed-tool")
+        // Enter takes the first match, or the id as typed.
+        choose(shown && shown.dataset.tool.startsWith(typed) ? shown.dataset.tool : typed)
+      },
+    })
+
+    const draw = query => {
+      const matching = tools.filter(
+        tool =>
+          !query ||
+          tool.id.toLowerCase().includes(query) ||
+          String(tool.name ?? "").toLowerCase().includes(query),
+      )
+      list.replaceChildren(
+        el(
+          "button",
+          {
+            class: current ? "rich-embed-tool" : "rich-embed-tool current",
+            type: "button",
+            "data-tool": "",
+            onclick: () => choose(""),
+          },
+          "Default tool",
+        ),
+        ...matching.map(tool =>
+          el(
+            "button",
+            {
+              class: tool.id === current ? "rich-embed-tool current" : "rich-embed-tool",
+              type: "button",
+              "data-tool": tool.id,
+              onclick: () => choose(tool.id),
+            },
+            el("span", {}, tool.name ?? tool.id),
+            el("span", { class: "rich-embed-tool-id" }, tool.id),
+          ),
+        ),
+      )
+      if (!matching.length && query) {
+        list.append(el("div", { class: "rich-embed-tool-hint" }, "↵ to use this id"))
+      }
+    }
+
+    draw("")
+    this.tools$.replaceChildren(search, list)
+    this.tools$.hidden = false
+    this.onDismiss = event => {
+      if (!this.contains(event.target) && !this.shadowRoot.contains(event.target)) this.closeTools()
+    }
+    document.addEventListener("mousedown", this.onDismiss, true)
+    search.focus()
+    search.select()
+  }
+
+  closeTools() {
+    this.tools$.hidden = true
+    this.tools$.replaceChildren()
+    if (this.onDismiss) document.removeEventListener("mousedown", this.onDismiss, true)
+  }
+
+  disconnectedCallback() {
+    this.closeTools()
+  }
+
   async render() {
     const url = this.getAttribute("doc-url")
-    if (url === this.rendered) return
+    const tool = this.getAttribute("tool-id") ?? ""
+    if (url === this.rendered && tool === this.renderedTool) return
     this.rendered = url
+    this.renderedTool = tool
     this.title$.textContent = "…"
     this.kind$.textContent = ""
     this.body$.replaceChildren(
@@ -165,8 +325,9 @@ class RichEmbed extends HTMLElement {
     const type = doc?.["@patchwork"]?.type ?? ""
     const isImage = type === "file" && String(doc?.mimeType ?? "").startsWith("image/")
 
+    this.docType = type
     this.title$.textContent = await titleOf(doc, type)
-    this.kind$.textContent = type
+    this.kind$.textContent = this.getAttribute("tool-id") || type || "tool"
     this.dataset.kind = isImage ? "image" : type || "document"
     if (this.rendered !== url) return
 

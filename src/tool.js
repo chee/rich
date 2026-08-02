@@ -19,8 +19,8 @@ import { tables } from "wordgard/table"
 import { automergeSyncPlugin } from "./wordgard/index.js"
 import { docFromSpansCompat } from "./compat.js"
 import { defineEmbedElement } from "./embed-element.js"
-import { richAdapter, Column, Columns, Embed, RichImage } from "./adapter.js"
-import { FillColor, InkColor } from "./colors.js"
+import { richAdapter, Column, Columns, Embed, EmbedTool, RichImage } from "./adapter.js"
+import { Highlight } from "./highlight.js"
 import { featureExtensions, richPlugins } from "./features.js"
 import { docSelector, expandSelector } from "./plugin-catalog.js"
 import "./rich.css"
@@ -81,7 +81,7 @@ export default function RichTool(handle, element) {
     doc: docFromSpansCompat(richAdapter, am.spans(handle.doc(), ["content"])),
     config: [
       // Node types the adapter maps but no editing bundle registers.
-      GardState.schemaElement.of([Embed, RichImage, Columns, Column, InkColor, FillColor]),
+      GardState.schemaElement.of([Embed, RichImage, Columns, Column, Highlight, EmbedTool]),
 
       // Editing behaviour for exactly the node/mark types the adapter maps,
       // so the user can only create content that round-trips to Automerge.

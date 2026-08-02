@@ -31,3 +31,12 @@ export function getRegistry(type) {
 export function getAllRegistries() {
   return registries
 }
+
+// A couple of pretend tools, so the embed's tool picker has something to show.
+export function getSupportedToolsForType(type) {
+  return [
+    { id: "rich", name: "Rich Text", supportedDatatypes: ["rich"] },
+    { id: "raw", name: "Raw JSON", supportedDatatypes: ["*"] },
+    { id: "file", name: "File", supportedDatatypes: ["file"] },
+  ].filter(tool => tool.supportedDatatypes.includes(type) || tool.supportedDatatypes.includes("*"))
+}

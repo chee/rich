@@ -295,6 +295,8 @@
   z-index: 30;
   display: none;
   align-items: center;
+  flex-wrap: wrap;
+  max-width: min(calc(100vw - 24px), 32rem);
   gap: 2px;
   padding: 3px;
   border: 1px solid var(--rich-border);
@@ -336,6 +338,10 @@
   height: 16px;
   margin: 0 3px;
   background: var(--rich-border);
+}
+
+.rich-format-bar .hidden {
+  display: none;
 }
 
 .rich-dialog {
@@ -501,124 +507,174 @@
   outline-offset: -2px;
 }
 
-/* The palette. Named colours, so the theme decides what pink is: the host's
-   own `--studio-color-ink-*` / `--studio-color-fill-*` tokens win when it has
-   them, otherwise these soft defaults, with a dark variant. */
+/* Table handles: a grip along each row and column that selects it, and a "+"
+   past the last of each that grows the table. Drawn in an overlay rather than
+   in the table, which the editor owns. */
+.rich-table-handles {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+/* `all: unset` first: it would otherwise wipe the positioning these need. */
+.rich-table-plus {
+  all: unset;
+}
+
+.rich-table-grip,
+.rich-table-plus {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.rich-table-grip {
+  border-radius: 3px;
+  background: var(--rich-border);
+  opacity: 0.6;
+}
+
+.rich-table-grip:hover {
+  background: var(--rich-accent);
+  opacity: 1;
+}
+
+.rich-table-plus {
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--rich-faint);
+  background: var(--rich-sunk);
+}
+
+.rich-table-plus.column {
+  width: 14px;
+}
+
+.rich-table-plus.row {
+  height: 14px;
+}
+
+.rich-table-plus:hover {
+  color: var(--rich-line);
+  background: var(--rich-border);
+}
+
+/* Highlights: five pairings of a background — the editor's own fill, nudged
+   towards a hue — and a text colour that stays cute against it. Light and dark
+   are defined here rather than derived, so they are actually nice. */
 @layer package {
   :root,
   :host,
   [theme] {
-    --rich-ink-pink: var(--studio-color-ink-pink, #c31f6d);
-    --rich-fill-pink: var(--studio-color-fill-pink, #ffdcea);
-    --rich-ink-red: var(--studio-color-ink-red, #c0342b);
-    --rich-fill-red: var(--studio-color-fill-red, #ffdcd8);
-    --rich-ink-orange: var(--studio-color-ink-orange, #a85a00);
-    --rich-fill-orange: var(--studio-color-fill-orange, #ffe6cd);
-    --rich-ink-yellow: var(--studio-color-ink-yellow, #8a6300);
-    --rich-fill-yellow: var(--studio-color-fill-yellow, #fff2c2);
-    --rich-ink-green: var(--studio-color-ink-green, #177a45);
-    --rich-fill-green: var(--studio-color-fill-green, #d7f6de);
-    --rich-ink-sea: var(--studio-color-ink-sea, #0d7a72);
-    --rich-fill-sea: var(--studio-color-fill-sea, #cdf4ef);
-    --rich-ink-sky: var(--studio-color-ink-sky, #0a63b0);
-    --rich-fill-sky: var(--studio-color-fill-sky, #daecff);
-    --rich-ink-purple: var(--studio-color-ink-purple, #6d40c4);
-    --rich-fill-purple: var(--studio-color-fill-purple, #eaddff);
+    --rich-highlight-pink-bg: color-mix(in oklch, var(--rich-fill), #ff4d97 16%);
+    --rich-highlight-pink-ink: #b02463;
+    --rich-highlight-yellow-bg: color-mix(in oklch, var(--rich-fill), #ffcc33 16%);
+    --rich-highlight-yellow-ink: #8a5b00;
+    --rich-highlight-sky-bg: color-mix(in oklch, var(--rich-fill), #3ba6ff 16%);
+    --rich-highlight-sky-ink: #0b5da8;
+    --rich-highlight-sea-bg: color-mix(in oklch, var(--rich-fill), #1cc4bb 16%);
+    --rich-highlight-sea-ink: #0a6a66;
+    --rich-highlight-mint-bg: color-mix(in oklch, var(--rich-fill), #4fdf9c 16%);
+    --rich-highlight-mint-ink: #137a4e;
   }
 
   @media (prefers-color-scheme: dark) {
     :root,
     :host,
     [theme] {
-      --rich-ink-pink: var(--studio-color-ink-pink, #ff9dc6);
-      --rich-fill-pink: var(--studio-color-fill-pink, #5a1b36);
-      --rich-ink-red: var(--studio-color-ink-red, #ff9f96);
-      --rich-fill-red: var(--studio-color-fill-red, #511d19);
-      --rich-ink-orange: var(--studio-color-ink-orange, #ffbe7d);
-      --rich-fill-orange: var(--studio-color-fill-orange, #4d2b06);
-      --rich-ink-yellow: var(--studio-color-ink-yellow, #f5d264);
-      --rich-fill-yellow: var(--studio-color-fill-yellow, #413007);
-      --rich-ink-green: var(--studio-color-ink-green, #8fe3ac);
-      --rich-fill-green: var(--studio-color-fill-green, #123a24);
-      --rich-ink-sea: var(--studio-color-ink-sea, #7fded4);
-      --rich-fill-sea: var(--studio-color-fill-sea, #0d3a37);
-      --rich-ink-sky: var(--studio-color-ink-sky, #8ec8ff);
-      --rich-fill-sky: var(--studio-color-fill-sky, #0f3054);
-      --rich-ink-purple: var(--studio-color-ink-purple, #c3a5ff);
-      --rich-fill-purple: var(--studio-color-fill-purple, #2f1f52);
+      --rich-highlight-pink-bg: color-mix(in oklch, var(--rich-fill), #ff4d97 26%);
+      --rich-highlight-pink-ink: #ffb0d2;
+      --rich-highlight-yellow-bg: color-mix(in oklch, var(--rich-fill), #ffcc33 26%);
+      --rich-highlight-yellow-ink: #ffdf94;
+      --rich-highlight-sky-bg: color-mix(in oklch, var(--rich-fill), #3ba6ff 26%);
+      --rich-highlight-sky-ink: #a8d6ff;
+      --rich-highlight-sea-bg: color-mix(in oklch, var(--rich-fill), #1cc4bb 26%);
+      --rich-highlight-sea-ink: #8ce7de;
+      --rich-highlight-mint-bg: color-mix(in oklch, var(--rich-fill), #4fdf9c 26%);
+      --rich-highlight-mint-ink: #a3f2c8;
     }
   }
 }
 
-.rich-tool .rich-ink-default { color: inherit; }
-.rich-tool .rich-fill-default { background: none; }
-.rich-tool .rich-ink-pink { color: var(--rich-ink-pink); }
-.rich-tool .rich-ink-red { color: var(--rich-ink-red); }
-.rich-tool .rich-ink-orange { color: var(--rich-ink-orange); }
-.rich-tool .rich-ink-yellow { color: var(--rich-ink-yellow); }
-.rich-tool .rich-ink-green { color: var(--rich-ink-green); }
-.rich-tool .rich-ink-sea { color: var(--rich-ink-sea); }
-.rich-tool .rich-ink-sky { color: var(--rich-ink-sky); }
-.rich-tool .rich-ink-purple { color: var(--rich-ink-purple); }
+[theme="dark"] .rich-tool,
+[data-theme="dark"] .rich-tool {
+  --rich-highlight-pink-bg: color-mix(in oklch, var(--rich-fill), #ff4d97 26%);
+  --rich-highlight-pink-ink: #ffb0d2;
+  --rich-highlight-yellow-bg: color-mix(in oklch, var(--rich-fill), #ffcc33 26%);
+  --rich-highlight-yellow-ink: #ffdf94;
+  --rich-highlight-sky-bg: color-mix(in oklch, var(--rich-fill), #3ba6ff 26%);
+  --rich-highlight-sky-ink: #a8d6ff;
+  --rich-highlight-sea-bg: color-mix(in oklch, var(--rich-fill), #1cc4bb 26%);
+  --rich-highlight-sea-ink: #8ce7de;
+  --rich-highlight-mint-bg: color-mix(in oklch, var(--rich-fill), #4fdf9c 26%);
+  --rich-highlight-mint-ink: #a3f2c8;
+}
 
-.rich-tool [class^="rich-fill-"]:not(.rich-fill-default) {
+.rich-tool .rich-highlight {
   border-radius: 3px;
   padding: 0.05em 0.15em;
   margin: 0 -0.05em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
-.rich-tool .rich-fill-pink { background: var(--rich-fill-pink); }
-.rich-tool .rich-fill-red { background: var(--rich-fill-red); }
-.rich-tool .rich-fill-orange { background: var(--rich-fill-orange); }
-.rich-tool .rich-fill-yellow { background: var(--rich-fill-yellow); }
-.rich-tool .rich-fill-green { background: var(--rich-fill-green); }
-.rich-tool .rich-fill-sea { background: var(--rich-fill-sea); }
-.rich-tool .rich-fill-sky { background: var(--rich-fill-sky); }
-.rich-tool .rich-fill-purple { background: var(--rich-fill-purple); }
-
-/* Swatches in the block menu. */
-.rich-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+.rich-tool .rich-highlight-pink {
+  background: var(--rich-highlight-pink-bg);
+  color: var(--rich-highlight-pink-ink);
+}
+.rich-tool .rich-highlight-yellow {
+  background: var(--rich-highlight-yellow-bg);
+  color: var(--rich-highlight-yellow-ink);
+}
+.rich-tool .rich-highlight-sky {
+  background: var(--rich-highlight-sky-bg);
+  color: var(--rich-highlight-sky-ink);
+}
+.rich-tool .rich-highlight-sea {
+  background: var(--rich-highlight-sea-bg);
+  color: var(--rich-highlight-sea-ink);
+}
+.rich-tool .rich-highlight-mint {
+  background: var(--rich-highlight-mint-bg);
+  color: var(--rich-highlight-mint-ink);
 }
 
-.rich-swatch {
+/* The swatches in the selection bar: the highlight, wearing itself. */
+.rich-highlight-swatch {
   all: unset;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 1px solid var(--rich-border);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.rich-swatch:hover {
-  outline: 2px solid var(--rich-accent);
-  outline-offset: 1px;
+.rich-highlight-swatch:hover {
+  border-color: var(--rich-line);
 }
 
-.rich-swatch-default {
-  background:
-    linear-gradient(to top right, transparent 46%, var(--rich-muted) 46%, var(--rich-muted) 54%, transparent 54%),
-    var(--rich-fill);
+.rich-highlight-swatch.active {
+  border-color: var(--rich-line);
+  box-shadow: inset 0 0 0 1px var(--rich-fill);
 }
-.rich-swatch[data-role="fill"].rich-swatch-pink { background: var(--rich-fill-pink); }
-.rich-swatch[data-role="ink"].rich-swatch-pink { background: var(--rich-ink-pink); }
-.rich-swatch[data-role="fill"].rich-swatch-red { background: var(--rich-fill-red); }
-.rich-swatch[data-role="ink"].rich-swatch-red { background: var(--rich-ink-red); }
-.rich-swatch[data-role="fill"].rich-swatch-orange { background: var(--rich-fill-orange); }
-.rich-swatch[data-role="ink"].rich-swatch-orange { background: var(--rich-ink-orange); }
-.rich-swatch[data-role="fill"].rich-swatch-yellow { background: var(--rich-fill-yellow); }
-.rich-swatch[data-role="ink"].rich-swatch-yellow { background: var(--rich-ink-yellow); }
-.rich-swatch[data-role="fill"].rich-swatch-green { background: var(--rich-fill-green); }
-.rich-swatch[data-role="ink"].rich-swatch-green { background: var(--rich-ink-green); }
-.rich-swatch[data-role="fill"].rich-swatch-sea { background: var(--rich-fill-sea); }
-.rich-swatch[data-role="ink"].rich-swatch-sea { background: var(--rich-ink-sea); }
-.rich-swatch[data-role="fill"].rich-swatch-sky { background: var(--rich-fill-sky); }
-.rich-swatch[data-role="ink"].rich-swatch-sky { background: var(--rich-ink-sky); }
-.rich-swatch[data-role="fill"].rich-swatch-purple { background: var(--rich-fill-purple); }
-.rich-swatch[data-role="ink"].rich-swatch-purple { background: var(--rich-ink-purple); }
+
+.rich-highlight-swatch[data-highlight="none"] {
+  color: var(--rich-muted);
+  background:
+    linear-gradient(
+      to top right,
+      transparent 45%,
+      var(--rich-faint) 45%,
+      var(--rich-faint) 55%,
+      transparent 55%
+    );
+}
+
 
 /* The block handle's menu. */
 .rich-block-menu {
@@ -666,22 +722,8 @@
 }
 
 .rich-block-menu-item.danger:hover {
-  background: var(--rich-fill-red);
-  color: var(--rich-ink-red);
-}
-
-.rich-block-menu-colors {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-}
-
-.rich-block-menu-label {
-  flex-shrink: 0;
-  width: 4.5rem;
-  font-size: 0.75rem;
-  color: var(--rich-muted);
+  background: color-mix(in oklch, var(--rich-fill), #ff4d4d 16%);
+  color: #b02424;
 }
 
 /* Blocks and commands read differently in the slash menu. */

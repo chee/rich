@@ -30,11 +30,11 @@ model (e.g. `@automerge/prosemirror`).
   Automerge blocks, so a layout round-trips.
 - **Tables.** `/table` — wordgard's table support, mapped to
   `table`/`table-row`/`table-cell` blocks.
-- **Colour.** Text and background colour from the block menu: pink, red,
-  orange, yellow, green, sea, sky, purple, or default. The document stores the
-  *name*, so the theme decides what pink is — the host's
-  `--studio-color-ink-*` / `--studio-color-fill-*` tokens when it has them,
-  otherwise a soft built-in palette with a dark variant.
+- **Highlights.** Five of them — pink, yellow, sky, sea, mint — in the bar that
+  appears over a selection. Each is a pairing of a background (the editor's own
+  fill, nudged towards the hue) and a text colour that stays readable on it,
+  written out for light and dark rather than derived. The document stores the
+  *name*, so the look belongs to the theme.
 - **Images are file documents.** Pasting, dropping or picking an image creates a
   Patchwork `file` doc (a `UnixFileEntry`: `content`/`extension`/`mimeType`/
   `name`) and stores its AutomergeUrl in the image block; only the rendered
@@ -120,11 +120,16 @@ carry their behaviour inline. `context` carries
 - `src/features.js`, `src/slash.js`, `src/block-types.js`, `src/blocks.js`,
   `src/block-menu.js`, `src/format-bar.js`, `src/images.js` — the built-in
   plugins and the menus.
-- `src/colors.js` — the named-colour marks; `src/icons.js` — menu glyphs.
+- `src/highlight.js` — the named highlight mark; `src/icons.js` — menu glyphs.
 - `src/embed-element.js` — `<rich-embed>`, the window an embedded document
   draws for itself (shadow DOM, so the editor can't wipe its chrome). Image
   file documents render as an `<img>`, everything else mounts a
-  `<patchwork-view>`; the look follows `space`'s canvas windows.
+  `<patchwork-view>`; the look follows `space`'s canvas windows. The type badge
+  in its titlebar opens a filterable list of the tools registered for that
+  datatype — or type an id and press Enter to use one the registry doesn't know
+  about. The choice is a mark on the embed (`tool` on the block, `tool-id` on
+  the element), so it belongs to the document. The element only *asks*, by
+  dispatching `rich-embed-tool`; the editor owns the change.
 - `src/files.js` — file documents in, service-worker URLs out.
 - `src/wordgard/` — the Automerge bindings, vendored.
 - `src/registry.js`, `src/plugin-catalog.js`, `src/plugins-panel.js` — the
