@@ -102,7 +102,7 @@ await shot("01-slash-menu")
 
 await type("bul")
 const filtered = await page.$$eval(".rich-slash-name", items => items.map(item => item.textContent))
-check("slash filters", filtered.length === 1 && filtered[0] === "Bulleted list", filtered.join(", "))
+check("slash filters", filtered.length === 1 && filtered[0] === "Bulleted List", filtered.join(", "))
 await page.keyboard.press("Enter")
 await type("milk")
 check(
@@ -212,7 +212,7 @@ await page.keyboard.press("Escape")
   )
   check(
     "block menu offers block types and actions",
-    names.includes("Heading 2") && names.includes("Duplicate") && names.includes("Delete"),
+    names.includes("Heading") && names.includes("Duplicate") && names.includes("Delete"),
     names.join(", "),
   )
   await menu.screenshot({
@@ -220,10 +220,111 @@ await page.keyboard.press("Escape")
     caret: "initial",
   })
 
-  await menu.locator(".rich-block-menu-item", { hasText: "Heading 2" }).click()
+  await menu.locator(".rich-block-menu-item:has(.rich-slash-name:text-is('Heading'))").click()
   await menu.waitForTimeout(300)
   check("block menu converts the block", (await menu.$$("wg-content h2")).length > 0)
   await menu.close()
+}
+
+// The block-type row on the selection bar: what this block is, and what else
+// it could be.
+{
+  const types = await freshPage()
+  await types.keyboard.type("Title line", { delay: 40 })
+  await types.keyboard.press("Enter")
+  await types.keyboard.type("an ordinary paragraph", { delay: 40 })
+  await types.keyboard.press("Home")
+  await types.keyboard.down("Shift")
+  await types.keyboard.press("End")
+  await types.keyboard.up("Shift")
+  await types.waitForTimeout(300)
+  check(
+    "the bar names the current block type",
+    (await types.textContent(".rich-format-block-name")) === "Body",
+    await types.textContent(".rich-format-block-name"),
+  )
+  await types.click(".rich-format-block")
+  await types.waitForTimeout(200)
+  const names = await types.$$eval(".rich-format-block-item .rich-slash-name", items =>
+    items.map(item => item.textContent),
+  )
+  check(
+    "the block-type menu lists every type",
+    names.join(", ") ===
+      "Body, Title, Heading, Subheading, Bulleted List, Numbered List, Quote, Code",
+    names.join(", "),
+  )
+  check(
+    "the current type is ticked",
+    (await types.$$eval(".rich-format-block-item", items =>
+      items.filter(i => i.querySelector(".rich-format-tick")).map(i => i.textContent),
+    )).join(", ").includes("Body"),
+  )
+  await types.screenshot({
+    path: new URL("./shots/02d-block-types.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+  await types.locator(".rich-format-block-item:has(.rich-slash-name:text-is('Subheading'))").click()
+  await types.waitForTimeout(300)
+  check("the block-type menu converts the block", (await types.$$("wg-content h3")).length === 1)
+  await types.waitForTimeout(200)
+  check(
+    "the bar now names the new type",
+    (await types.textContent(".rich-format-block-name")) === "Subheading",
+    await types.textContent(".rich-format-block-name"),
+  )
+  await types.close()
+}
+
+// The link editor: anchored to the link button, at the words being linked.
+{
+  const links = await freshPage()
+  await links.keyboard.type("Title", { delay: 40 })
+  await links.keyboard.press("Enter")
+  await links.keyboard.type("link this word", { delay: 40 })
+  await links.keyboard.down("Shift")
+  for (let i = 0; i < 4; i++) await links.keyboard.press("ArrowLeft")
+  await links.keyboard.up("Shift")
+  await links.waitForTimeout(300)
+  await links.click(".rich-format-button[title='Link']")
+  await links.waitForTimeout(200)
+  check("the link editor opens", await links.isVisible(".rich-link-editor"))
+  // It hangs off the bar, so it sits where the selection is rather than at the
+  // edge of the editor.
+  const editor = await links.locator(".rich-link-editor").boundingBox()
+  const bar = await links.locator(".rich-format-bar").boundingBox()
+  const word = await links.locator("wg-content > p:last-child").boundingBox()
+  check(
+    "the link editor sits under the bar, by the words",
+    editor.y >= bar.y + bar.height &&
+      editor.x >= bar.x &&
+      editor.y - (word.y + word.height) < 200,
+    JSON.stringify({ editor: [editor.x, editor.y], bar: [bar.x, bar.y, bar.height], word: [word.y, word.height] }),
+  )
+  await links.screenshot({
+    path: new URL("./shots/02e-link.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+  await links.fill(".rich-link-input", "https://chee.party")
+  await links.press(".rich-link-input", "Enter")
+  await links.waitForTimeout(300)
+  check(
+    "the link applies",
+    (await links.$eval("wg-content a", a => a.getAttribute("href"))) === "https://chee.party",
+  )
+  check("the link editor closes", (await links.$$(".rich-link-editor")).length === 0)
+
+  // Reopening on an existing link offers it back, and can take it away.
+  await links.click(".rich-format-button[title='Link']")
+  await links.waitForTimeout(200)
+  check(
+    "reopening shows the existing link",
+    (await links.inputValue(".rich-link-input")) === "https://chee.party",
+  )
+  await links.click(".rich-link-remove")
+  await links.waitForTimeout(300)
+  check("the link is removed", (await links.$$("wg-content a")).length === 0)
+  await links.close()
 }
 
 // Highlighting a span, from the bar that appears over a selection.
@@ -238,11 +339,18 @@ await page.keyboard.press("Escape")
   for (let i = 0; i < 6; i++) await marker.keyboard.press("ArrowRight")
   await marker.keyboard.up("Shift")
   await marker.waitForTimeout(300)
+  check(
+    "the selection bar offers one highlight button",
+    (await marker.$$(".rich-highlight-marker")).length === 1 &&
+      (await marker.$$(".rich-highlight-swatch")).length === 0,
+  )
+  await marker.locator(".rich-highlight-dot").click()
+  await marker.waitForTimeout(150)
   const swatches = await marker.$$eval(".rich-highlight-swatch", items =>
     items.map(item => item.dataset.highlight),
   )
   check(
-    "the selection bar offers the highlights",
+    "the dot opens the colour chooser",
     swatches.join(",") === "pink,yellow,sky,sea,mint,none",
     swatches.join(","),
   )
@@ -260,6 +368,25 @@ await page.keyboard.press("Escape")
     caret: "initial",
   })
 
+  // Picking mint left it as the current colour, so the marker alone toggles it.
+  check(
+    "the dot wears the chosen colour",
+    (await marker.getAttribute(".rich-highlight-dot", "data-highlight")) === "mint",
+  )
+  await marker.locator(".rich-highlight-marker").click()
+  await marker.waitForTimeout(250)
+  check("the marker clears an existing highlight", (await marker.$$("wg-content .rich-highlight")).length === 0)
+  await marker.locator(".rich-highlight-marker").click()
+  await marker.waitForTimeout(250)
+  check(
+    "the marker re-applies the current colour",
+    (await marker.$$("wg-content .rich-highlight-mint")).length === 1,
+  )
+
+  await marker.locator(".rich-highlight-dot").click()
+  await marker.waitForTimeout(150)
+  await marker.locator(".rich-highlight-dot").click()
+  await marker.waitForTimeout(200)
   await marker.locator('.rich-highlight-swatch[data-highlight="none"]').click()
   await marker.waitForTimeout(250)
   check("highlight clears", (await marker.$$("wg-content .rich-highlight")).length === 0)

@@ -294,8 +294,8 @@
   position: absolute;
   z-index: 30;
   display: none;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
   max-width: min(calc(100vw - 24px), 32rem);
   gap: 2px;
   padding: 3px;
@@ -307,6 +307,85 @@
 
 .rich-format-bar.visible {
   display: flex;
+}
+
+/* Row two: the character formatting. */
+.rich-format-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* Row one: what this block is, dropping down what else it could be. */
+.rich-format-block-control {
+  position: relative;
+  display: flex;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--rich-border);
+  margin-bottom: 1px;
+}
+
+.rich-format-block {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.rich-format-block:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-format-block-name {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.rich-format-chevron {
+  color: var(--rich-faint);
+}
+
+.rich-format-block-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
+.rich-format-block-item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rich-format-block-item:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-format-tick {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--rich-accent);
 }
 
 .rich-format-button {
@@ -561,56 +640,67 @@
   background: var(--rich-border);
 }
 
-/* Highlights: five pairings of a background — the editor's own fill, nudged
-   towards a hue — and a text colour that stays cute against it. Light and dark
-   are defined here rather than derived, so they are actually nice. */
+/* Highlights: five hues from chee's palette (create-chee-app's palette.css),
+   each worn as a background — the editor's own fill nudged towards the hue —
+   and a text colour, the same hue taken deep or bright. `light-dark()` picks
+   between them per the current `color-scheme`, so they follow the theme the
+   editor is wearing rather than the reader's operating system. */
 @layer package {
   :root,
   :host,
   [theme] {
-    --rich-highlight-pink-bg: color-mix(in oklch, var(--rich-fill), #ff4d97 16%);
-    --rich-highlight-pink-ink: #b02463;
-    --rich-highlight-yellow-bg: color-mix(in oklch, var(--rich-fill), #ffcc33 16%);
-    --rich-highlight-yellow-ink: #8a5b00;
-    --rich-highlight-sky-bg: color-mix(in oklch, var(--rich-fill), #3ba6ff 16%);
-    --rich-highlight-sky-ink: #0b5da8;
-    --rich-highlight-sea-bg: color-mix(in oklch, var(--rich-fill), #1cc4bb 16%);
-    --rich-highlight-sea-ink: #0a6a66;
-    --rich-highlight-mint-bg: color-mix(in oklch, var(--rich-fill), #4fdf9c 16%);
-    --rich-highlight-mint-ink: #137a4e;
-  }
+    --rich-highlight-pink-hue: oklch(0.67 0.29 340.37); /* pizzazz */
+    --rich-highlight-yellow-hue: oklch(0.86 0.16 87.44); /* sunglow */
+    --rich-highlight-sky-hue: oklch(0.79 0.14 226.17); /* sky */
+    --rich-highlight-sea-hue: oklch(0.57 0.23 262.55); /* f-blue */
+    --rich-highlight-mint-hue: oklch(0.88 0.17 167.51); /* mynt */
 
-  @media (prefers-color-scheme: dark) {
-    :root,
-    :host,
-    [theme] {
-      --rich-highlight-pink-bg: color-mix(in oklch, var(--rich-fill), #ff4d97 26%);
-      --rich-highlight-pink-ink: #ffb0d2;
-      --rich-highlight-yellow-bg: color-mix(in oklch, var(--rich-fill), #ffcc33 26%);
-      --rich-highlight-yellow-ink: #ffdf94;
-      --rich-highlight-sky-bg: color-mix(in oklch, var(--rich-fill), #3ba6ff 26%);
-      --rich-highlight-sky-ink: #a8d6ff;
-      --rich-highlight-sea-bg: color-mix(in oklch, var(--rich-fill), #1cc4bb 26%);
-      --rich-highlight-sea-ink: #8ce7de;
-      --rich-highlight-mint-bg: color-mix(in oklch, var(--rich-fill), #4fdf9c 26%);
-      --rich-highlight-mint-ink: #a3f2c8;
-    }
+    --rich-highlight-pink-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-pink-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-pink-hue) 28%)
+    );
+    --rich-highlight-pink-ink: light-dark(
+      oklch(from var(--rich-highlight-pink-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-pink-hue) 0.86 c h)
+    );
+    --rich-highlight-yellow-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-yellow-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-yellow-hue) 28%)
+    );
+    --rich-highlight-yellow-ink: light-dark(
+      oklch(from var(--rich-highlight-yellow-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-yellow-hue) 0.86 c h)
+    );
+    --rich-highlight-sky-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-sky-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-sky-hue) 28%)
+    );
+    --rich-highlight-sky-ink: light-dark(
+      oklch(from var(--rich-highlight-sky-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-sky-hue) 0.86 c h)
+    );
+    --rich-highlight-sea-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-sea-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-sea-hue) 28%)
+    );
+    /* Sea is the deepest of the five: taken as light as the others its chroma
+       clips away to lavender-grey, so on dark it stays lower and keeps its
+       blue. */
+    --rich-highlight-sea-ink: light-dark(
+      oklch(from var(--rich-highlight-sea-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-sea-hue) 0.72 calc(c * 1.4) h)
+    );
+    --rich-highlight-mint-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-mint-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-mint-hue) 28%)
+    );
+    --rich-highlight-mint-ink: light-dark(
+      oklch(from var(--rich-highlight-mint-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-mint-hue) 0.86 c h)
+    );
   }
 }
 
-[theme="dark"] .rich-tool,
-[data-theme="dark"] .rich-tool {
-  --rich-highlight-pink-bg: color-mix(in oklch, var(--rich-fill), #ff4d97 26%);
-  --rich-highlight-pink-ink: #ffb0d2;
-  --rich-highlight-yellow-bg: color-mix(in oklch, var(--rich-fill), #ffcc33 26%);
-  --rich-highlight-yellow-ink: #ffdf94;
-  --rich-highlight-sky-bg: color-mix(in oklch, var(--rich-fill), #3ba6ff 26%);
-  --rich-highlight-sky-ink: #a8d6ff;
-  --rich-highlight-sea-bg: color-mix(in oklch, var(--rich-fill), #1cc4bb 26%);
-  --rich-highlight-sea-ink: #8ce7de;
-  --rich-highlight-mint-bg: color-mix(in oklch, var(--rich-fill), #4fdf9c 26%);
-  --rich-highlight-mint-ink: #a3f2c8;
-}
 
 .rich-tool .rich-highlight {
   border-radius: 3px;
@@ -640,17 +730,147 @@
   color: var(--rich-highlight-mint-ink);
 }
 
-/* The swatches in the selection bar: the highlight, wearing itself. */
+/* The link editor: hung off the link button, so it sits at the words being
+   linked rather than at the edge of the editor. */
+.rich-link-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rich-link-editor {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
+.rich-link-input {
+  all: unset;
+  width: 15rem;
+  padding: 4px 7px;
+  border: 1px solid var(--rich-border);
+  border-radius: 5px;
+  background: var(--rich-fill);
+  color: var(--rich-line);
+  font-family: var(--rich-family);
+  font-size: 0.85rem;
+}
+
+.rich-link-input:focus {
+  border-color: var(--rich-accent);
+}
+
+.rich-link-submit,
+.rich-link-remove {
+  all: unset;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rich-link-submit:hover,
+.rich-link-remove:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-link-remove {
+  color: var(--rich-muted);
+}
+
+/* The table control in the selection bar: one button, dropping down the
+   row and column actions. */
+.rich-table-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rich-table-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
+.rich-table-menu-item {
+  all: unset;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rich-table-menu-item:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-table-menu-item.danger:hover {
+  background: color-mix(in oklch, var(--rich-fill), #ff4d4d 16%);
+  color: #b02424;
+}
+
+/* The highlight control in the selection bar: a marker that applies the
+   current colour, and a dot wearing that colour that opens the list. */
+.rich-highlight-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.rich-highlight-dot {
+  all: unset;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--rich-border);
+  cursor: pointer;
+}
+
+.rich-highlight-dot:hover {
+  border-color: var(--rich-line);
+}
+
+.rich-highlight-chooser {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
 .rich-highlight-swatch {
   all: unset;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   border-radius: 5px;
   border: 1px solid transparent;
-  font-size: 0.75rem;
-  font-weight: 600;
   cursor: pointer;
 }
 
@@ -658,13 +878,8 @@
   border-color: var(--rich-line);
 }
 
-.rich-highlight-swatch.active {
-  border-color: var(--rich-line);
-  box-shadow: inset 0 0 0 1px var(--rich-fill);
-}
-
-.rich-highlight-swatch[data-highlight="none"] {
-  color: var(--rich-muted);
+.rich-highlight-swatch[data-highlight="none"],
+.rich-highlight-dot[data-highlight="none"] {
   background:
     linear-gradient(
       to top right,

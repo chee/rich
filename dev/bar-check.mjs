@@ -31,12 +31,23 @@ const barBox = async () => {
   })
 }
 
-// Select a word by double-clicking at a given point in a block.
+// Select a word by double-clicking on the text itself. The block's box runs
+// the full content width, so its right edge is usually past the last word and
+// clicking there selects nothing.
 async function selectAt(index, side) {
-  const box = await page.locator(`wg-content > p:nth-child(${index})`).boundingBox()
-  const x = side === "left" ? box.x + 8 : box.x + box.width - 20
-  await page.mouse.dblclick(x, box.y + box.height / 2)
+  const text = await page.evaluate(i => {
+    const node = document.querySelectorAll("wg-content > p")[i - 1].firstChild
+    if (!node) return null
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    const { left, right, top, bottom } = range.getBoundingClientRect()
+    return { left, right, top, bottom }
+  }, index)
+  if (!text) return false
+  const x = side === "left" ? text.left + 8 : text.right - 8
+  await page.mouse.dblclick(x, (text.top + text.bottom) / 2)
   await page.waitForTimeout(150)
+  return true
 }
 
 const inside = bar =>
@@ -62,7 +73,7 @@ for (const scroll of [0, 220]) {
     ["bottom", lines.at(-1)],
   ]) {
     for (const side of ["left", "right"]) {
-      await selectAt(index, side)
+      if (!(await selectAt(index, side))) continue
       const bar = await barBox()
       check(
         `${where}-${side} at scroll ${scroll} keeps the bar on screen`,

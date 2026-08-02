@@ -32,9 +32,10 @@ model (e.g. `@automerge/prosemirror`).
   `table`/`table-row`/`table-cell` blocks.
 - **Highlights.** Five of them — pink, yellow, sky, sea, mint — in the bar that
   appears over a selection. Each is a pairing of a background (the editor's own
-  fill, nudged towards the hue) and a text colour that stays readable on it,
-  written out for light and dark rather than derived. The document stores the
-  *name*, so the look belongs to the theme.
+  fill, nudged towards the hue) and a text colour that sits deep against it.
+  `light-dark()` picks between them, so they follow the `color-scheme` the
+  editor is actually wearing rather than the reader's OS. The document stores
+  the *name*, so the look belongs to the theme.
 - **Images are file documents.** Pasting, dropping or picking an image creates a
   Patchwork `file` doc (a `UnixFileEntry`: `content`/`extension`/`mimeType`/
   `name`) and stores its AutomergeUrl in the image block; only the rendered

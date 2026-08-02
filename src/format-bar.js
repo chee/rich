@@ -1,31 +1,28 @@
 // A floating bar over the selection, in place of a permanent toolbar.
-import { Dialog, Wordgard } from "wordgard/editor"
-import {
-  Command,
-  setTextblockType,
-  toggleMark,
-  toggleEmphasis,
-  toggleStrong,
-  wrapBlock,
-} from "wordgard/command"
-import { Blockquote, Code, Emphasis, Heading, Link, Paragraph, Strong } from "wordgard/types"
+import { Wordgard } from "wordgard/editor"
+import { Command, toggleMark, toggleEmphasis, toggleStrong } from "wordgard/command"
+import { Code, Emphasis, Link, Strong } from "wordgard/types"
 import { HIGHLIGHTS, highlightAt, highlightChanges } from "./highlight.js"
 import { CellSelection } from "wordgard/table"
-import { TABLE_ACTIONS } from "./tables.js"
-import { el } from "./dom.js"
+import { inTable, tableMenu } from "./tables.js"
+import { el, svg } from "./dom.js"
+import { icon } from "./icons.js"
 
 function marksAt(state) {
   const { from, to } = state.selection
   return state.doc.resolve(from).marks(from === to ? undefined : state.doc.resolve(to))
 }
 
-function headingLevel(state) {
-  const block = state.sel.head.textblockParent
-  return block?.node.tag.type === Heading ? block.node.tag.param : null
-}
-
+// The marks at a position come from the text before it, so a selection sitting
+// exactly on a link has none at either end. Read what is actually inside it.
 function linkAt(state) {
-  return marksAt(state).find(mark => mark.type === Link) ?? null
+  const { from, to } = state.selection
+  if (from === to) return Link.isInSet(marksAt(state)) ?? null
+  let found = null
+  state.doc.iterate(from, to, node => {
+    found ??= Link.isInSet(node.marks) ?? null
+  })
+  return found
 }
 
 const ACTIONS = [
@@ -50,39 +47,6 @@ const ACTIONS = [
     active: state => Code.isInSet(marksAt(state)),
     run: wg => Command.dispatch(wg, toggleMark, Code),
   },
-  {
-    id: "link",
-    label: "↗",
-    title: "Link",
-    active: state => Boolean(linkAt(state)),
-    run: editLink,
-  },
-  { separator: true },
-  {
-    id: "h1",
-    label: "H1",
-    title: "Heading 1",
-    active: state => headingLevel(state) === 1,
-    run: wg => toggleHeading(wg, 1),
-  },
-  {
-    id: "h2",
-    label: "H2",
-    title: "Heading 2",
-    active: state => headingLevel(state) === 2,
-    run: wg => toggleHeading(wg, 2),
-  },
-  {
-    id: "quote",
-    label: "❝",
-    title: "Quote",
-    active: state => Boolean(state.sel.head.matchingParent(plot => plot.tag === Blockquote)),
-    run: wg => Command.dispatch(wg, wrapBlock, Blockquote),
-  },
-  // Selecting cells (with the table grips, or by dragging across them) swaps
-  // the character formatting for the table's own verbs.
-  { separator: true, when: cellSelection },
-  ...TABLE_ACTIONS.map(action => ({ ...action, when: cellSelection })),
 ]
 
 function cellSelection(state) {
@@ -96,64 +60,299 @@ const GAP = 8
 // starts on screen rather than being pushed off the other side.
 const clamp = (value, low, high) => Math.max(low, Math.min(value, high))
 
-function toggleHeading(wg, level) {
-  const tag = headingLevel(wg.state) === level ? Paragraph : Heading.of(level)
-  Command.dispatch(wg, setTextblockType, tag)
+// The link editor hangs off the link button rather than opening a dialog: a
+// panel at the edge of the editor is a long way from the words being linked.
+function linkControl(wg) {
+  const button = el(
+    "button",
+    {
+      class: "rich-format-button",
+      type: "button",
+      title: "Link",
+      onmousedown: event => {
+        event.preventDefault()
+        control.querySelector(".rich-link-editor") ? close() : open()
+      },
+    },
+    "↗",
+  )
+
+  const control = el("span", { class: "rich-link-control" }, button)
+
+  let close = () => {}
+
+  function open() {
+    const existing = linkAt(wg.state)
+    // Focusing the input collapses the editor's selection, so the range the
+    // link is for has to be remembered and put back before applying it.
+    const { from, to } = wg.state.selection
+    const input = el("input", {
+      class: "rich-link-input",
+      type: "url",
+      placeholder: "https://…",
+      value: existing?.value ?? "",
+    })
+    const restore = () => wg.dispatch({ selection: { anchor: from, head: to } })
+    const commit = () => {
+      const href = input.value.trim()
+      restore()
+      // Setting a link over one that is already there has to remove the old
+      // mark first: a parameterised mark is removed by value, not by type.
+      if (existing) Command.dispatch(wg, toggleMark, existing)
+      if (href) Command.dispatch(wg, toggleMark, Link.of(href))
+      close()
+      wg.focus()
+    }
+    const form = el(
+      "form",
+      {
+        class: "rich-link-editor",
+        onsubmit: event => {
+          event.preventDefault()
+          commit()
+        },
+      },
+      input,
+      el("button", { class: "rich-link-submit", type: "submit" }, existing ? "Update" : "Link"),
+      existing
+        ? el(
+            "button",
+            {
+              class: "rich-link-remove",
+              type: "button",
+              title: "Remove link",
+              onmousedown: event => {
+                event.preventDefault()
+                restore()
+                Command.dispatch(wg, toggleMark, existing)
+                close()
+                wg.focus()
+              },
+            },
+            "✕",
+          )
+        : null,
+    )
+    const onOutside = event => {
+      if (!control.contains(event.target)) close()
+    }
+    const onKey = event => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      close()
+      wg.focus()
+    }
+    close = () => {
+      form.remove()
+      document.removeEventListener("mousedown", onOutside, true)
+      document.removeEventListener("keydown", onKey, true)
+      close = () => {}
+    }
+    control.append(form)
+    document.addEventListener("mousedown", onOutside, true)
+    document.addEventListener("keydown", onKey, true)
+    input.focus()
+    input.select()
+  }
+
+  return {
+    control,
+    hide: () => close(),
+    sync: state => button.classList.toggle("active", Boolean(linkAt(state))),
+  }
 }
 
-function editLink(wg) {
-  const existing = linkAt(wg.state)
-  if (existing) return Command.dispatch(wg, toggleMark, existing)
-  const { result } = Dialog.show(wg, {
-    class: "rich-dialog",
-    label: "Link to",
-    input: { name: "href", type: "url", placeholder: "https://…" },
-    submitLabel: "Link",
-  })
-  result.then(form => {
-    const href = form?.elements?.href?.value?.trim()
-    if (href) Command.dispatch(wg, toggleMark, Link.of(href))
-    wg.focus()
-  })
-}
+// One marker button that highlights in the current colour (and un-highlights
+// when the selection already wears it), and a dot beside it that opens the
+// colour list. Five swatches in the bar was five decisions for one action.
+function highlightControl(wg) {
+  let colour = HIGHLIGHTS[0]
 
-function highlightButtons(wg) {
-  const apply = name => () => {
+  const apply = name => {
     const { from, to } = wg.state.selection
     if (from === to) return
-    wg.dispatch({ changes: highlightChanges(wg.state.doc, name, from, to), userEvent: "format.highlight" })
+    wg.dispatch({
+      changes: highlightChanges(wg.state.doc, name, from, to),
+      userEvent: "format.highlight",
+    })
     wg.focus()
   }
-  const swatch = name =>
-    el(
-      "button",
-      {
-        class: `rich-highlight-swatch rich-highlight-${name}`,
+
+  const marker = el(
+    "button",
+    {
+      class: "rich-format-button rich-highlight-marker",
+      type: "button",
+      title: "Highlight",
+      onmousedown: event => {
+        event.preventDefault()
+        apply(highlightAt(wg.state) === colour ? null : colour)
+      },
+    },
+    svg(`<path d="M3 13h3l6.5-6.5a1.8 1.8 0 00-2.5-2.5L3.5 10.5z"/><path d="M2.5 13.5h5"/>`),
+  )
+
+  const dot = el("button", {
+    class: `rich-highlight-dot rich-highlight-${colour}`,
+    type: "button",
+    title: "Highlight colour",
+    "data-highlight": colour,
+    onmousedown: event => {
+      event.preventDefault()
+      openChooser()
+    },
+  })
+
+  const setColour = name => {
+    colour = name
+    dot.className = `rich-highlight-dot rich-highlight-${name}`
+    dot.dataset.highlight = name
+  }
+
+  const control = el("span", { class: "rich-highlight-control" }, marker, dot)
+
+  function openChooser() {
+    control.querySelector(".rich-highlight-chooser")?.remove()
+    const close = () => {
+      chooser.remove()
+      document.removeEventListener("mousedown", onOutside, true)
+      document.removeEventListener("keydown", onKey, true)
+    }
+    const onOutside = event => {
+      if (!chooser.contains(event.target) && event.target !== dot) close()
+    }
+    const onKey = event => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      close()
+      wg.focus()
+    }
+    const swatch = name =>
+      el("button", {
+        class: `rich-highlight-swatch rich-highlight-${name ?? "none"}`,
         type: "button",
         title: name ? `Highlight ${name}` : "No highlight",
         "data-highlight": name ?? "none",
         onmousedown: event => {
           event.preventDefault()
-          apply(name)()
+          if (name) setColour(name)
+          apply(name)
+          close()
         },
-      },
-      "A",
+      })
+    const chooser = el(
+      "div",
+      { class: "rich-highlight-chooser" },
+      ...HIGHLIGHTS.map(swatch),
+      swatch(null),
     )
-  return [...HIGHLIGHTS.map(swatch), swatch(null)]
+    control.append(chooser)
+    document.addEventListener("mousedown", onOutside, true)
+    document.addEventListener("keydown", onKey, true)
+  }
+
+  return { control, marker, sync: state => marker.classList.toggle("active", Boolean(highlightAt(state))) }
+}
+
+// The row at the top of the bar: what this block is, dropping down everything
+// it could be instead. The list is `context.blockTypes()`, the same one the
+// slash menu and the block handle read, so a contributed type appears here too.
+function blockTypeControl(wg, context) {
+  const glyph = el("span", { class: "rich-slash-icon" })
+  const label = el("span", { class: "rich-format-block-name" }, "Body")
+  const button = el(
+    "button",
+    {
+      class: "rich-format-block",
+      type: "button",
+      onmousedown: event => {
+        event.preventDefault()
+        control.querySelector(".rich-format-block-menu") ? close() : open()
+      },
+    },
+    glyph,
+    label,
+    el("span", { class: "rich-format-chevron" }, "›"),
+  )
+
+  const control = el("div", { class: "rich-format-block-control" }, button)
+
+  let close = () => {}
+
+  function open() {
+    const menu = el(
+      "div",
+      { class: "rich-format-block-menu" },
+      context.blockTypes().map(block =>
+        el(
+          "button",
+          {
+            class: "rich-format-block-item",
+            type: "button",
+            onmousedown: event => {
+              event.preventDefault()
+              block.apply(wg, context)
+              close()
+              wg.focus()
+            },
+          },
+          el("span", { class: "rich-slash-icon" }, icon(block)),
+          el("span", { class: "rich-slash-name" }, block.name),
+          block.active?.(wg.state) ? el("span", { class: "rich-format-tick" }, "✓") : null,
+        ),
+      ),
+    )
+    const onOutside = event => {
+      if (!control.contains(event.target)) close()
+    }
+    const onKey = event => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      close()
+      wg.focus()
+    }
+    close = () => {
+      menu.remove()
+      document.removeEventListener("mousedown", onOutside, true)
+      document.removeEventListener("keydown", onKey, true)
+      close = () => {}
+    }
+    control.append(menu)
+    document.addEventListener("mousedown", onOutside, true)
+    document.addEventListener("keydown", onKey, true)
+  }
+
+  return {
+    control,
+    hide: () => close(),
+    sync: state => {
+      const blocks = context.blockTypes()
+      // Innermost wins: a list item is also a paragraph, and the list is the
+      // more useful answer.
+      const active = blocks.filter(block => block.active?.(state)).pop() ?? blocks[0]
+      label.textContent = active?.name ?? "Body"
+      glyph.replaceChildren(active ? icon(active) : "")
+    },
+  }
 }
 
 class FormatBar {
-  constructor(wg) {
+  constructor(wg, context) {
     this.wg = wg
     this.buttons = []
     // Which parts of the bar apply to the current selection. Cell selections
     // get the table verbs instead of the character formatting, so every part
     // carries the predicate that decides whether it is shown.
     this.parts = []
-    this.bar = el("div", { class: "rich-format-bar" })
+    // Two rows: what this block is, then how the selected characters look.
+    // Cells hold inline content, so the block row has nothing to offer there.
+    this.blockType = blockTypeControl(wg, context)
+    const row = el("div", { class: "rich-format-row" })
+    this.bar = el("div", { class: "rich-format-bar" }, this.blockType.control, row)
+    this.parts.push({ element: this.blockType.control, when: state => !inTable(state) })
     const part = (element, when) => {
       this.parts.push({ element, when: when ?? (state => !cellSelection(state)) })
-      this.bar.append(element)
+      row.append(element)
     }
     for (const action of ACTIONS) {
       if (action.separator) {
@@ -176,8 +375,14 @@ class FormatBar {
       this.buttons.push({ action, button })
       part(button, action.when)
     }
+    this.link = linkControl(wg)
+    part(this.link.control)
     part(el("span", { class: "rich-format-separator" }))
-    for (const swatch of highlightButtons(wg)) part(swatch)
+    this.highlight = highlightControl(wg)
+    part(this.highlight.control)
+    this.table = tableMenu(wg)
+    part(el("span", { class: "rich-format-separator" }), inTable)
+    part(this.table.control, inTable)
   }
 
   connect(wg) {
@@ -202,20 +407,28 @@ class FormatBar {
 
   sync(wg) {
     const { state } = wg
-    if (state.selection.empty || !wg.hasFocus) {
+    // Typing in the link field takes focus out of the editor, which would
+    // otherwise be read as "nothing is selected any more" and close the bar
+    // out from under the thing being typed into.
+    const typing = this.bar.contains(document.activeElement)
+    if (!typing && (state.selection.empty || !wg.hasFocus)) {
       this.bar.classList.remove("visible")
+      this.table.hide()
+      this.blockType.hide()
+      this.link.hide()
       return
     }
+    if (!inTable(state)) this.table.hide()
+    else this.blockType.hide()
     for (const { element, when } of this.parts) {
       element.classList.toggle("hidden", !when(state))
     }
     for (const { action, button } of this.buttons) {
       button.classList.toggle("active", Boolean(action.active?.(state)))
     }
-    const highlight = highlightAt(state)
-    for (const swatch of this.bar.querySelectorAll(".rich-highlight-swatch")) {
-      swatch.classList.toggle("active", swatch.dataset.highlight === (highlight ?? "none"))
-    }
+    this.highlight.sync(state)
+    this.blockType.sync(state)
+    this.link.sync(state)
     const host = wg.dom.getBoundingClientRect()
     const start = wg.coordsAtPos(state.selection.from, 1)
     const end = wg.coordsAtPos(state.selection.to, -1)
@@ -242,6 +455,6 @@ class FormatBar {
   }
 }
 
-export function formatBar() {
-  return Wordgard.Plugin.fromClass(FormatBar).extension
+export function formatBar(context) {
+  return Wordgard.Plugin.define(wg => new FormatBar(wg, context)).extension
 }

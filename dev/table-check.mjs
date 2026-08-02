@@ -60,19 +60,36 @@ check("row and column grips drawn", grips === 3 + grown.length, `${grips} grips`
 check("two + buttons drawn", pluses === 2, `${pluses}`)
 await shot("table-handles")
 
+// The + buttons sit outside the table, so moving the pointer off the table to
+// reach them must not take them away.
+const plusBox = await page.locator(".rich-table-plus.column").boundingBox()
+await page.mouse.move(plusBox.x + plusBox.width / 2, plusBox.y + plusBox.height / 2)
+await page.waitForTimeout(200)
+check(
+  "the + survives the pointer leaving the table",
+  (await page.$$(".rich-table-plus")).length === 2,
+)
+
 // The + past the last column grows the table sideways.
 const widthBefore = (await shape())[0].length / 2
-await page.click(".rich-table-plus.column")
-await page.waitForTimeout(100)
+await page.mouse.down()
+await page.mouse.up()
+await page.waitForTimeout(150)
 const widened = await shape()
 check("+ adds a column", widened[0].length / 2 === widthBefore + 1, JSON.stringify(widened))
+
+// And the handles are still there afterwards, so it can be clicked again.
+check(
+  "the handles are redrawn after the table grows",
+  (await page.$$(".rich-table-plus")).length === 2,
+)
 
 // The + past the last row grows it downwards.
 const rowsBefore = widened.length
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
 await page.waitForTimeout(150)
 await page.click(".rich-table-plus.row")
-await page.waitForTimeout(100)
+await page.waitForTimeout(150)
 check("+ adds a row", (await shape()).length === rowsBefore + 1, JSON.stringify(await shape()))
 await shot("table-grown")
 
@@ -83,26 +100,90 @@ await page.click(".rich-table-grip.column")
 await page.waitForTimeout(150)
 const selected = await page.$$eval(".wg-selected-cell", n => n.length)
 check("column grip selects the column", selected > 1, `${selected} cells`)
-const labels = await page.$$eval(".rich-format-bar .rich-format-button:not(.hidden)", n =>
-  n.map(b => b.textContent),
+// The highlight and table buttons live inside a wrapper, and it is the wrapper
+// that gets hidden — so ask whether anything up the tree is hidden.
+const visible = () =>
+  page.$$eval(".rich-format-bar .rich-format-button", n =>
+    n.filter(b => !b.closest(".hidden")).map(b => b.title || b.textContent),
+  )
+let labels = await visible()
+check("the bar offers a table button", labels.includes("Table"), labels.join(" "))
+check("the bar hides the character verbs on a cell selection", !labels.includes("Bold"), labels.join(" "))
+check(
+  "the bar hides the block-type row inside a table",
+  await page.$eval(".rich-format-block-control", n => n.classList.contains("hidden")),
 )
-check("format bar shows the table verbs", labels.includes("Merge"), labels.join(" "))
-check("format bar hides the character verbs", !labels.includes("B"), labels.join(" "))
 await shot("table-column-selected")
 
-// Delete column, from the bar.
+// The table button drops down the actions.
+await page.click(".rich-table-menu-button")
+await page.waitForTimeout(150)
+const items = await page.$$eval(".rich-table-menu-item", n => n.map(b => b.textContent))
+check(
+  "the table menu lists the actions",
+  items.join(", ") ===
+    "Add row above, Add row below, Add column before, Add column after, Toggle header cells, Merge cells, Split cell, Delete row, Delete column",
+  items.join(", "),
+)
+await shot("table-menu")
+
+// Delete column, from the menu.
 const wideNow = (await shape())[0].length / 2
-await page.click(".rich-format-bar .rich-format-button[title='Delete column']")
-await page.waitForTimeout(100)
-check("bar deletes the column", (await shape())[0].length / 2 === wideNow - 1, JSON.stringify(await shape()))
+await page.click(".rich-table-menu-item:text-is('Delete column')")
+await page.waitForTimeout(150)
+check("the menu deletes the column", (await shape())[0].length / 2 === wideNow - 1, JSON.stringify(await shape()))
+
+// Selecting text inside a cell keeps the character verbs but not the headings.
+// On its own page: a leftover cell selection changes what a click in a cell
+// does, and this is about the plain case.
+{
+  const fresh = await browser.newPage({ viewport: { width: 1100, height: 800 } })
+  fresh.on("pageerror", e => errors.push(String(e)))
+  await fresh.goto("http://localhost:5173/")
+  await fresh.waitForSelector("wg-content")
+  await fresh.click("wg-content")
+  await fresh.keyboard.type("Notes", { delay: 40 })
+  await fresh.keyboard.press("Enter")
+  await fresh.keyboard.type("/", { delay: 40 })
+  await fresh.waitForSelector(".rich-slash-item")
+  await fresh.keyboard.type("table", { delay: 40 })
+  await fresh.waitForTimeout(100)
+  await fresh.keyboard.press("Enter")
+  await fresh.waitForSelector("wg-content table")
+  await fresh.keyboard.type("word", { delay: 30 })
+  await fresh.keyboard.down("Shift")
+  for (let i = 0; i < 4; i++) await fresh.keyboard.press("ArrowLeft")
+  await fresh.keyboard.up("Shift")
+  await fresh.waitForTimeout(300)
+  check(
+    "the caret is in a cell",
+    await fresh.evaluate(() =>
+      Boolean(window.richDev.editor.state.sel.head.matchingParent(p => p.name === "Table")),
+    ),
+  )
+  labels = await fresh.$$eval(".rich-format-bar .rich-format-button", n =>
+    n.filter(b => !b.closest(".hidden")).map(b => b.title || b.textContent),
+  )
+  check("a text selection in a cell keeps bold", labels.includes("Bold"), labels.join(" "))
+  check(
+    "a text selection in a cell hides the block-type row",
+    await fresh.$eval(".rich-format-block-control", n => n.classList.contains("hidden")),
+  )
+  check("a text selection in a cell keeps the table button", labels.includes("Table"), labels.join(" "))
+  await fresh.screenshot({
+    path: new URL("./shots/table-text-selected.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+  await fresh.close()
+}
 
 // The block menu's table section.
 await page.mouse.move(box.x + 20, box.y + 10)
 await page.waitForTimeout(150)
 await page.click(".rich-gutter-grip")
 await page.waitForSelector(".rich-block-menu")
-const items = await page.$$eval(".rich-block-menu-item", n => n.map(b => b.textContent))
-check("block menu has a table section", items.includes("Add row"), items.join(", "))
+const blockItems = await page.$$eval(".rich-block-menu-item", n => n.map(b => b.textContent))
+check("block menu has a table section", blockItems.includes("Add row"), blockItems.join(", "))
 await shot("table-block-menu")
 const rowsNow = (await shape()).length
 await page.click(".rich-block-menu-item:has-text('Add row')")

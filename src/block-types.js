@@ -32,23 +32,31 @@ const textblockIs = (state, test) => {
 const insideList = (state, tag) =>
   Boolean(state.sel.head.matchingParent(plot => plot.tag === tag))
 
+// The headings are named for what they are in a note rather than by level, so
+// the old names ride along as keywords and "h2" still finds Heading.
+const HEADINGS = [
+  { level: 1, name: "Title", keywords: ["h1", "heading 1", "big"] },
+  { level: 2, name: "Heading", keywords: ["h2", "heading 2"] },
+  { level: 3, name: "Subheading", keywords: ["h3", "heading 3", "small"] },
+]
+
 export const blockTypes = [
-  blockType("text", "Text", "text", ["paragraph", "plain", "body"], {
+  blockType("text", "Body", "text", ["paragraph", "plain", "text"], {
     active: state => textblockIs(state, tag => tag === Paragraph),
     apply: wg => Command.dispatch(wg, setTextblockType, Paragraph),
   }),
-  ...[1, 2, 3].map(level =>
-    blockType(`h${level}`, `Heading ${level}`, `h${level}`, level === 1 ? ["title", "big"] : [], {
+  ...HEADINGS.map(({ level, name, keywords }) =>
+    blockType(`h${level}`, name, `h${level}`, keywords, {
       active: state =>
         textblockIs(state, tag => tag.type === Heading && tag.param === level),
       apply: wg => Command.dispatch(wg, setTextblockType, Heading.of(level)),
     }),
   ),
-  blockType("bullet", "Bulleted list", "bullet", ["ul", "unordered"], {
+  blockType("bullet", "Bulleted List", "bullet", ["ul", "unordered"], {
     active: state => insideList(state, BulletList),
     apply: wg => Command.dispatch(wg, toggleList, BulletList),
   }),
-  blockType("ordered", "Numbered list", "ordered", ["ol", "number"], {
+  blockType("ordered", "Numbered List", "ordered", ["ol", "number"], {
     active: state => Boolean(state.sel.head.matchingParent(plot => plot.tag.type === OrderedList)),
     apply: wg => Command.dispatch(wg, toggleList, OrderedList.of(1)),
   }),
@@ -56,7 +64,7 @@ export const blockTypes = [
     active: state => insideList(state, Blockquote),
     apply: wg => Command.dispatch(wg, toggleBlock, Blockquote),
   }),
-  blockType("code", "Code block", "code", ["pre", "snippet"], {
+  blockType("code", "Code", "code", ["pre", "snippet", "code block"], {
     active: state => textblockIs(state, tag => tag === CodeBlock),
     apply: wg => Command.dispatch(wg, setTextblockType, CodeBlock),
   }),

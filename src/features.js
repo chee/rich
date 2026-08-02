@@ -107,7 +107,7 @@ export const featurePlugins = [
   feature("images", "Image paste & drop", "core", () => imageDropAndPaste()),
   feature("embed", "Document embeds", "core", embedExtensions),
   feature("placeholder", "Placeholder", "core", () => placeholder("Start writing…")),
-  feature("format-bar", "Selection formatting", "full", () => formatBar()),
+  feature("format-bar", "Selection formatting", "full", context => formatBar(context)),
   feature("typography", "Smart typography", "full", () =>
     typographyRules.map(rule => rule.extension),
   ),

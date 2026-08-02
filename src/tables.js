@@ -62,30 +62,99 @@ function runAt(wg, pos, command, param) {
   return Command.dispatch(wg, command, param)
 }
 
-// What the format bar offers once cells are selected: everything acts on the
-// selection, so `label` is the short form the bar shows and `title` the long
-// one it explains itself with.
+// What the table menu offers. Everything acts on the selection, which is
+// already in the table for the menu to be showing at all.
 export const TABLE_ACTIONS = [
-  { id: "row-above", label: "Row ↑", title: "Row above", run: wg => Command.dispatch(wg, addRow, "before") },
-  { id: "row-below", label: "Row ↓", title: "Row below", run: wg => Command.dispatch(wg, addRow, "after") },
+  { id: "row-above", label: "Add row above", run: wg => Command.dispatch(wg, addRow, "before") },
+  { id: "row-below", label: "Add row below", run: wg => Command.dispatch(wg, addRow, "after") },
   {
     id: "column-before",
-    label: "Col ←",
-    title: "Column left",
+    label: "Add column before",
     run: wg => Command.dispatch(wg, addColumn, "before"),
   },
   {
     id: "column-after",
-    label: "Col →",
-    title: "Column right",
+    label: "Add column after",
     run: wg => Command.dispatch(wg, addColumn, "after"),
   },
-  { id: "header", label: "Header", title: "Toggle header cells", run: wg => Command.dispatch(wg, toggleHeaderCell) },
-  { id: "merge", label: "Merge", title: "Merge cells", run: wg => Command.dispatch(wg, mergeCells) },
-  { id: "split", label: "Split", title: "Split cell", run: wg => Command.dispatch(wg, splitCell) },
-  { id: "delete-row", label: "− Row", title: "Delete row", run: wg => Command.dispatch(wg, deleteRow) },
-  { id: "delete-column", label: "− Col", title: "Delete column", run: wg => Command.dispatch(wg, deleteColumn) },
+  { id: "header", label: "Toggle header cells", run: wg => Command.dispatch(wg, toggleHeaderCell) },
+  { id: "merge", label: "Merge cells", run: wg => Command.dispatch(wg, mergeCells) },
+  { id: "split", label: "Split cell", run: wg => Command.dispatch(wg, splitCell) },
+  { id: "delete-row", label: "Delete row", danger: true, run: wg => Command.dispatch(wg, deleteRow) },
+  {
+    id: "delete-column",
+    label: "Delete column",
+    danger: true,
+    run: wg => Command.dispatch(wg, deleteColumn),
+  },
 ]
+
+// The format bar's table control: one button that drops down the actions,
+// shown only while the selection is in a table.
+export function tableMenu(wg) {
+  const button = el(
+    "button",
+    {
+      class: "rich-format-button rich-table-menu-button",
+      type: "button",
+      title: "Table",
+      onmousedown: event => {
+        event.preventDefault()
+        control.querySelector(".rich-table-menu") ? close() : open()
+      },
+    },
+    svg(TABLE_ICON),
+  )
+
+  const control = el("span", { class: "rich-table-control" }, button)
+
+  let close = () => {}
+
+  function open() {
+    const menu = el(
+      "div",
+      { class: "rich-table-menu" },
+      TABLE_ACTIONS.map(action =>
+        el(
+          "button",
+          {
+            class: action.danger ? "rich-table-menu-item danger" : "rich-table-menu-item",
+            type: "button",
+            onmousedown: event => {
+              event.preventDefault()
+              action.run(wg)
+              close()
+              wg.focus()
+            },
+          },
+          action.label,
+        ),
+      ),
+    )
+    const onOutside = event => {
+      if (!control.contains(event.target)) close()
+    }
+    const onKey = event => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      close()
+      wg.focus()
+    }
+    close = () => {
+      menu.remove()
+      document.removeEventListener("mousedown", onOutside, true)
+      document.removeEventListener("keydown", onKey, true)
+      close = () => {}
+    }
+    control.append(menu)
+    document.addEventListener("mousedown", onOutside, true)
+    document.addEventListener("keydown", onKey, true)
+  }
+
+  return { control, hide: () => close() }
+}
+
+const TABLE_ICON = `<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M2 6.5h12M2 10h12M6.5 6.5V13M10 6.5V13"/>`
 
 // The block menu opens on the table as a whole, so its verbs are table-level:
 // grow it at the end, or flip the header row. Editing a particular row or
@@ -162,6 +231,10 @@ function columnSpan(table, index) {
   return { from: ranges[index].from, to: ranges[(rows - 1) * width + index].to }
 }
 
+// How far outside a table the pointer still counts as on it, so the handles
+// drawn past its edges stay reachable.
+const REACH = 28
+
 // Handles drawn over a hovered table: a grip per row and per column that
 // selects it, and a "+" past the last of each that grows the table.
 class TableHandles {
@@ -193,8 +266,14 @@ class TableHandles {
     this.disconnect(wg)
   }
 
+  // Growing the table moves everything the handles were measured against, so
+  // they are redrawn rather than dropped — otherwise clicking "+" twice means
+  // hovering the table again in between.
   update(update) {
-    if (update.docChanged) this.hide()
+    if (!update.docChanged) return
+    const element = this.table
+    if (!element?.isConnected) return this.hide()
+    this.wg.scheduleDOMRead(() => element.isConnected && this.draw(element))
   }
 
   hide() {
@@ -204,9 +283,28 @@ class TableHandles {
 
   track(event) {
     if (this.layer.contains(event.target)) return
-    const element = event.target.closest?.("table")
-    if (!element || !this.wg.contentDOM.contains(element)) return this.hide()
+    const element = this.tableNear(event)
+    if (!element) return this.hide()
     this.draw(element)
+  }
+
+  // The "+" buttons sit outside the table, so the pointer has to be able to
+  // leave the table to reach them without the handles vanishing on the way.
+  tableNear(event) {
+    const under = event.target.closest?.("table")
+    if (under && this.wg.contentDOM.contains(under)) return under
+    for (const table of this.wg.contentDOM.querySelectorAll("table")) {
+      const box = table.getBoundingClientRect()
+      if (
+        event.clientX >= box.left - REACH &&
+        event.clientX <= box.right + REACH &&
+        event.clientY >= box.top - REACH &&
+        event.clientY <= box.bottom + REACH
+      ) {
+        return table
+      }
+    }
+    return null
   }
 
   // The table's position in the document. `nodeFromDOM` throws for an element
