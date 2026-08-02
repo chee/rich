@@ -3,7 +3,7 @@
 import { chromium } from "playwright"
 import { mkdir } from "node:fs/promises"
 
-const url = process.env.LUSH_DEV_URL ?? "http://localhost:5173/"
+const url = process.env.RICH_DEV_URL ?? "http://localhost:5173/"
 await mkdir(new URL("./shots/", import.meta.url), { recursive: true })
 
 // The "chromium" channel is the new headless mode: unlike the old headless
@@ -43,13 +43,13 @@ const blocks = () =>
     nodes.map(node => `${node.tagName.toLowerCase()}:${node.textContent}`),
   )
 const docJSON = () =>
-  page.evaluate(() => JSON.stringify(window.lushDev.editor.state.doc.toJSON()))
+  page.evaluate(() => JSON.stringify(window.richDev.editor.state.doc.toJSON()))
 
 // Run a slash command by name.
 async function slash(query, expected) {
   await type(`/${query}`)
-  await page.waitForSelector(".lush-slash-item", { timeout: 2000 })
-  const names = await page.$$eval(".lush-slash-name", items => items.map(item => item.textContent))
+  await page.waitForSelector(".rich-slash-item", { timeout: 2000 })
+  const names = await page.$$eval(".rich-slash-name", items => items.map(item => item.textContent))
   if (expected) {
     check(`slash /${query} lists ${expected}`, names.includes(expected), names.join(", "))
   }
@@ -78,8 +78,8 @@ check("no toolbar", (await page.$$(".wg-menubar")).length === 0)
 check("placeholder", await page.isVisible("wg-placeholder"))
 check(
   "doc seeds plugins array",
-  await page.evaluate(() => Array.isArray(window.lushDev.handle.doc().plugins)),
-  await page.evaluate(() => JSON.stringify(window.lushDev.handle.doc().plugins)),
+  await page.evaluate(() => Array.isArray(window.richDev.handle.doc().plugins)),
+  await page.evaluate(() => JSON.stringify(window.richDev.handle.doc().plugins)),
 )
 
 await page.click("wg-content")
@@ -88,20 +88,20 @@ await page.keyboard.press("Enter")
 
 // Slash menu
 await type("/")
-await page.waitForSelector(".lush-slash-item", { timeout: 2000 })
-const itemCount = await page.$$eval(".lush-slash-item", items => items.length)
+await page.waitForSelector(".rich-slash-item", { timeout: 2000 })
+const itemCount = await page.$$eval(".rich-slash-item", items => items.length)
 check("slash menu opens", itemCount > 8, `${itemCount} items`)
-const groups = await page.$$eval(".lush-slash-group", items => items.map(i => i.textContent))
+const groups = await page.$$eval(".rich-slash-group", items => items.map(i => i.textContent))
 check("blocks and commands are distinguished", groups[0] === "Turn into" && groups.length > 1, groups.join(", "))
 check(
   "block types are their own kind",
-  (await page.$$(".lush-slash-item.block")).length >= 8 &&
-    (await page.$$(".lush-slash-item.command")).length >= 5,
+  (await page.$$(".rich-slash-item.block")).length >= 8 &&
+    (await page.$$(".rich-slash-item.command")).length >= 5,
 )
 await shot("01-slash-menu")
 
 await type("bul")
-const filtered = await page.$$eval(".lush-slash-name", items => items.map(item => item.textContent))
+const filtered = await page.$$eval(".rich-slash-name", items => items.map(item => item.textContent))
 check("slash filters", filtered.length === 1 && filtered[0] === "Bulleted List", filtered.join(", "))
 await page.keyboard.press("Enter")
 await type("milk")
@@ -118,10 +118,10 @@ check("registry command ran", (await page.textContent("wg-content")).includes("â
 // Escape dismisses
 await page.keyboard.press("Enter")
 await type("/")
-await page.waitForSelector(".lush-slash-item")
+await page.waitForSelector(".rich-slash-item")
 await page.keyboard.press("Escape")
 await page.waitForTimeout(100)
-check("escape closes menu", (await page.$$(".lush-slash-item")).length === 0)
+check("escape closes menu", (await page.$$(".rich-slash-item")).length === 0)
 await page.keyboard.press("Backspace")
 
 // Format bar
@@ -130,24 +130,24 @@ await page.keyboard.down("Shift")
 await page.keyboard.press("End")
 await page.keyboard.up("Shift")
 await page.waitForTimeout(300)
-check("format bar shows on selection", await page.isVisible(".lush-format-bar.visible"))
-await page.click(".lush-format-button[title='Bold']")
+check("format bar shows on selection", await page.isVisible(".rich-format-bar.visible"))
+await page.click(".rich-format-button[title='Bold']")
 await page.waitForTimeout(150)
 check("bold applied", (await page.$$("wg-content strong")).length > 0)
 
 // Block gutter: hovering the text, then moving out to the gutter, keeps it up
 await page.locator("wg-content > *").first().hover()
 await page.waitForTimeout(150)
-check("gutter appears on hover", await page.isVisible(".lush-gutter.visible"))
-const gutterBox = await page.locator(".lush-gutter").boundingBox()
+check("gutter appears on hover", await page.isVisible(".rich-gutter.visible"))
+const gutterBox = await page.locator(".rich-gutter").boundingBox()
 await page.mouse.move(gutterBox.x + gutterBox.width / 2, gutterBox.y + gutterBox.height / 2)
 await page.waitForTimeout(200)
-check("gutter stays reachable", await page.isVisible(".lush-gutter.visible"))
+check("gutter stays reachable", await page.isVisible(".rich-gutter.visible"))
 await shot("02-gutter")
 
 // A real drag of the grip, with the mouse.
 async function dragBlockTo(targetSelector, atBottom = false) {
-  const grip = await page.locator(".lush-gutter-grip").boundingBox()
+  const grip = await page.locator(".rich-gutter-grip").boundingBox()
   const target = await page.locator(targetSelector).boundingBox()
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
   await page.mouse.down()
@@ -157,7 +157,7 @@ async function dragBlockTo(targetSelector, atBottom = false) {
     { steps: 12 },
   )
   await page.waitForTimeout(150)
-  const indicator = await page.isVisible(".lush-drop-indicator.visible")
+  const indicator = await page.isVisible(".rich-drop-indicator.visible")
   await page.mouse.up()
   await page.waitForTimeout(300)
   return indicator
@@ -165,7 +165,7 @@ async function dragBlockTo(targetSelector, atBottom = false) {
 
 // Drag the grip to a block's left or right edge instead of between blocks.
 async function dragBlockToSide(targetSelector, side) {
-  const grip = await page.locator(".lush-gutter-grip").boundingBox()
+  const grip = await page.locator(".rich-gutter-grip").boundingBox()
   const target = await page.locator(targetSelector).boundingBox()
   await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
   await page.mouse.down()
@@ -175,7 +175,7 @@ async function dragBlockToSide(targetSelector, side) {
     { steps: 14 },
   )
   await page.waitForTimeout(150)
-  const indicator = await page.isVisible(".lush-drop-indicator.vertical.visible")
+  const indicator = await page.isVisible(".rich-drop-indicator.vertical.visible")
   await page.mouse.up()
   await page.waitForTimeout(300)
   return indicator
@@ -190,9 +190,9 @@ check("drag reorders blocks", beforeDrag[0] !== afterDrag[0], `${beforeDrag[0]} 
 // "+" inserts a block and opens the menu
 await page.locator("wg-content > *").first().hover()
 await page.waitForTimeout(150)
-await page.locator(".lush-gutter-button").first().click()
+await page.locator(".rich-gutter-button").first().click()
 await page.waitForTimeout(250)
-check("plus opens slash menu", (await page.$$(".lush-slash-item")).length > 0)
+check("plus opens slash menu", (await page.$$(".rich-slash-item")).length > 0)
 await page.keyboard.press("Escape")
 
 // The block handle's menu: convert, colour, duplicate, delete.
@@ -204,10 +204,10 @@ await page.keyboard.press("Escape")
   await menu.waitForTimeout(200)
   await menu.locator("wg-content > *").nth(1).hover()
   await menu.waitForTimeout(200)
-  await menu.locator(".lush-gutter-grip").click()
+  await menu.locator(".rich-gutter-grip").click()
   await menu.waitForTimeout(250)
-  check("block menu opens", await menu.isVisible(".lush-block-menu"))
-  const names = await menu.$$eval(".lush-block-menu-item .lush-slash-name", items =>
+  check("block menu opens", await menu.isVisible(".rich-block-menu"))
+  const names = await menu.$$eval(".rich-block-menu-item .rich-slash-name", items =>
     items.map(item => item.textContent),
   )
   check(
@@ -220,7 +220,7 @@ await page.keyboard.press("Escape")
     caret: "initial",
   })
 
-  await menu.locator(".lush-block-menu-item:has(.lush-slash-name:text-is('Heading'))").click()
+  await menu.locator(".rich-block-menu-item:has(.rich-slash-name:text-is('Heading'))").click()
   await menu.waitForTimeout(300)
   check("block menu converts the block", (await menu.$$("wg-content h2")).length > 0)
   await menu.close()
@@ -240,12 +240,12 @@ await page.keyboard.press("Escape")
   await types.waitForTimeout(300)
   check(
     "the bar names the current block type",
-    (await types.textContent(".lush-format-block-name")) === "Body",
-    await types.textContent(".lush-format-block-name"),
+    (await types.textContent(".rich-format-block-name")) === "Body",
+    await types.textContent(".rich-format-block-name"),
   )
-  await types.click(".lush-format-block")
+  await types.click(".rich-format-block")
   await types.waitForTimeout(200)
-  const names = await types.$$eval(".lush-format-block-item .lush-slash-name", items =>
+  const names = await types.$$eval(".rich-format-block-item .rich-slash-name", items =>
     items.map(item => item.textContent),
   )
   check(
@@ -256,22 +256,22 @@ await page.keyboard.press("Escape")
   )
   check(
     "the current type is ticked",
-    (await types.$$eval(".lush-format-block-item", items =>
-      items.filter(i => i.querySelector(".lush-format-tick")).map(i => i.textContent),
+    (await types.$$eval(".rich-format-block-item", items =>
+      items.filter(i => i.querySelector(".rich-format-tick")).map(i => i.textContent),
     )).join(", ").includes("Body"),
   )
   await types.screenshot({
     path: new URL("./shots/02d-block-types.png", import.meta.url).pathname,
     caret: "initial",
   })
-  await types.locator(".lush-format-block-item:has(.lush-slash-name:text-is('Subheading'))").click()
+  await types.locator(".rich-format-block-item:has(.rich-slash-name:text-is('Subheading'))").click()
   await types.waitForTimeout(300)
   check("the block-type menu converts the block", (await types.$$("wg-content h3")).length === 1)
   await types.waitForTimeout(200)
   check(
     "the bar now names the new type",
-    (await types.textContent(".lush-format-block-name")) === "Subheading",
-    await types.textContent(".lush-format-block-name"),
+    (await types.textContent(".rich-format-block-name")) === "Subheading",
+    await types.textContent(".rich-format-block-name"),
   )
   await types.close()
 }
@@ -286,13 +286,13 @@ await page.keyboard.press("Escape")
   for (let i = 0; i < 4; i++) await links.keyboard.press("ArrowLeft")
   await links.keyboard.up("Shift")
   await links.waitForTimeout(300)
-  await links.click(".lush-format-button[title='Link']")
+  await links.click(".rich-format-button[title='Link']")
   await links.waitForTimeout(200)
-  check("the link editor opens", await links.isVisible(".lush-link-editor"))
+  check("the link editor opens", await links.isVisible(".rich-link-editor"))
   // It hangs off the bar, so it sits where the selection is rather than at the
   // edge of the editor.
-  const editor = await links.locator(".lush-link-editor").boundingBox()
-  const bar = await links.locator(".lush-format-bar").boundingBox()
+  const editor = await links.locator(".rich-link-editor").boundingBox()
+  const bar = await links.locator(".rich-format-bar").boundingBox()
   const word = await links.locator("wg-content > p:last-child").boundingBox()
   check(
     "the link editor sits under the bar, by the words",
@@ -305,23 +305,23 @@ await page.keyboard.press("Escape")
     path: new URL("./shots/02e-link.png", import.meta.url).pathname,
     caret: "initial",
   })
-  await links.fill(".lush-link-input", "https://chee.party")
-  await links.press(".lush-link-input", "Enter")
+  await links.fill(".rich-link-input", "https://chee.party")
+  await links.press(".rich-link-input", "Enter")
   await links.waitForTimeout(300)
   check(
     "the link applies",
     (await links.$eval("wg-content a", a => a.getAttribute("href"))) === "https://chee.party",
   )
-  check("the link editor closes", (await links.$$(".lush-link-editor")).length === 0)
+  check("the link editor closes", (await links.$$(".rich-link-editor")).length === 0)
 
   // Reopening on an existing link offers it back, and can take it away.
-  await links.click(".lush-format-button[title='Link']")
+  await links.click(".rich-format-button[title='Link']")
   await links.waitForTimeout(200)
   check(
     "reopening shows the existing link",
-    (await links.inputValue(".lush-link-input")) === "https://chee.party",
+    (await links.inputValue(".rich-link-input")) === "https://chee.party",
   )
-  await links.click(".lush-link-remove")
+  await links.click(".rich-link-remove")
   await links.waitForTimeout(300)
   check("the link is removed", (await links.$$("wg-content a")).length === 0)
   await links.close()
@@ -341,12 +341,12 @@ await page.keyboard.press("Escape")
   await marker.waitForTimeout(300)
   check(
     "the selection bar offers one highlight button",
-    (await marker.$$(".lush-highlight-marker")).length === 1 &&
-      (await marker.$$(".lush-highlight-swatch")).length === 0,
+    (await marker.$$(".rich-highlight-marker")).length === 1 &&
+      (await marker.$$(".rich-highlight-swatch")).length === 0,
   )
-  await marker.locator(".lush-highlight-dot").click()
+  await marker.locator(".rich-highlight-dot").click()
   await marker.waitForTimeout(150)
-  const swatches = await marker.$$eval(".lush-highlight-swatch", items =>
+  const swatches = await marker.$$eval(".rich-highlight-swatch", items =>
     items.map(item => item.dataset.highlight),
   )
   check(
@@ -354,13 +354,13 @@ await page.keyboard.press("Escape")
     swatches.join(",") === "pink,yellow,sky,sea,mint,none",
     swatches.join(","),
   )
-  await marker.locator('.lush-highlight-swatch[data-highlight="mint"]').click()
+  await marker.locator('.rich-highlight-swatch[data-highlight="mint"]').click()
   await marker.waitForTimeout(300)
-  check("highlight applies", (await marker.$$("wg-content .lush-highlight-mint")).length === 1)
-  const trip = await marker.evaluate(() => window.lushDev.roundTrip())
+  check("highlight applies", (await marker.$$("wg-content .rich-highlight-mint")).length === 1)
+  const trip = await marker.evaluate(() => window.richDev.roundTrip())
   check("highlights round trip", trip.live === trip.rebuilt)
   const marks = await marker.evaluate(
-    () => JSON.parse(window.lushDev.roundTrip().spans).find(span => span.marks)?.marks ?? null,
+    () => JSON.parse(window.richDev.roundTrip().spans).find(span => span.marks)?.marks ?? null,
   )
   check("highlights are stored by name", marks?.highlight === "mint", JSON.stringify(marks))
   await marker.screenshot({
@@ -371,25 +371,25 @@ await page.keyboard.press("Escape")
   // Picking mint left it as the current colour, so the marker alone toggles it.
   check(
     "the dot wears the chosen colour",
-    (await marker.getAttribute(".lush-highlight-dot", "data-highlight")) === "mint",
+    (await marker.getAttribute(".rich-highlight-dot", "data-highlight")) === "mint",
   )
-  await marker.locator(".lush-highlight-marker").click()
+  await marker.locator(".rich-highlight-marker").click()
   await marker.waitForTimeout(250)
-  check("the marker clears an existing highlight", (await marker.$$("wg-content .lush-highlight")).length === 0)
-  await marker.locator(".lush-highlight-marker").click()
+  check("the marker clears an existing highlight", (await marker.$$("wg-content .rich-highlight")).length === 0)
+  await marker.locator(".rich-highlight-marker").click()
   await marker.waitForTimeout(250)
   check(
     "the marker re-applies the current colour",
-    (await marker.$$("wg-content .lush-highlight-mint")).length === 1,
+    (await marker.$$("wg-content .rich-highlight-mint")).length === 1,
   )
 
-  await marker.locator(".lush-highlight-dot").click()
+  await marker.locator(".rich-highlight-dot").click()
   await marker.waitForTimeout(150)
-  await marker.locator(".lush-highlight-dot").click()
+  await marker.locator(".rich-highlight-dot").click()
   await marker.waitForTimeout(200)
-  await marker.locator('.lush-highlight-swatch[data-highlight="none"]').click()
+  await marker.locator('.rich-highlight-swatch[data-highlight="none"]').click()
   await marker.waitForTimeout(250)
-  check("highlight clears", (await marker.$$("wg-content .lush-highlight")).length === 0)
+  check("highlight clears", (await marker.$$("wg-content .rich-highlight")).length === 0)
   await marker.close()
 }
 
@@ -397,7 +397,7 @@ await page.keyboard.press("Escape")
 await page.keyboard.press("Backspace")
 await slash("col", "2 columns")
 await type("left side")
-check("columns created", (await page.$$(".lush-columns .lush-column")).length === 2)
+check("columns created", (await page.$$(".rich-columns .rich-column")).length === 2)
 check(
   "cursor lands in the first column",
   (await docJSON()).includes(
@@ -408,10 +408,10 @@ await shot("03-columns")
 
 // Blocks inside a column get their own handle, and can be dragged between
 // columns.
-await page.locator(".lush-column > *").first().hover()
+await page.locator(".rich-column > *").first().hover()
 await page.waitForTimeout(200)
-check("gutter works inside a column", await page.isVisible(".lush-gutter.visible"))
-await dragBlockTo(".lush-column:last-child", true)
+check("gutter works inside a column", await page.isVisible(".rich-gutter.visible"))
+await dragBlockTo(".rich-column:last-child", true)
 const moved = await docJSON()
 check(
   "block drags between columns",
@@ -425,7 +425,7 @@ check(
   await table.keyboard.type("Notes", { delay: 40 })
   await table.keyboard.press("Enter")
   await table.keyboard.type("/table", { delay: 40 })
-  await table.waitForSelector(".lush-slash-item")
+  await table.waitForSelector(".rich-slash-item")
   await table.keyboard.press("Enter")
   await table.waitForTimeout(300)
   await table.keyboard.type("cell", { delay: 40 })
@@ -434,7 +434,7 @@ check(
     "table has all its cells",
     (await table.$$("wg-content table th, wg-content table td")).length === 9,
   )
-  const trip = await table.evaluate(() => window.lushDev.roundTrip())
+  const trip = await table.evaluate(() => window.richDev.roundTrip())
   check("tables round trip", trip.live === trip.rebuilt, trip.rebuilt.slice(0, 160))
   await table.screenshot({
     path: new URL("./shots/03b-table.png", import.meta.url).pathname,
@@ -455,20 +455,20 @@ check(
 
   await side.locator("wg-content > *").nth(2).hover()
   await side.waitForTimeout(200)
-  const grip = await side.locator(".lush-gutter-grip").boundingBox()
+  const grip = await side.locator(".rich-gutter-grip").boundingBox()
   const target = await side.locator("wg-content > *").nth(1).boundingBox()
   await side.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
   await side.mouse.down()
   await side.mouse.move(target.x + target.width - 12, target.y + target.height / 2, { steps: 14 })
   await side.waitForTimeout(150)
-  check("side drop shows a vertical indicator", await side.isVisible(".lush-drop-indicator.vertical.visible"))
+  check("side drop shows a vertical indicator", await side.isVisible(".rich-drop-indicator.vertical.visible"))
   await side.mouse.up()
   await side.waitForTimeout(300)
-  const columns = await side.$$eval(".lush-columns .lush-column", items =>
+  const columns = await side.$$eval(".rich-columns .rich-column", items =>
     items.map(item => item.textContent),
   )
   check("side drop makes columns", columns.length === 2, columns.join(" | "))
-  const trip = await side.evaluate(() => window.lushDev.roundTrip())
+  const trip = await side.evaluate(() => window.richDev.roundTrip())
   check("side columns round trip", trip.live === trip.rebuilt)
   await side.screenshot({
     path: new URL("./shots/03c-side-columns.png", import.meta.url).pathname,
@@ -478,7 +478,7 @@ check(
 }
 
 // Everything the editor holds must survive the automerge round trip.
-const trip = await page.evaluate(() => window.lushDev.roundTrip())
+const trip = await page.evaluate(() => window.richDev.roundTrip())
 let diff = ""
 if (trip.live !== trip.rebuilt) {
   let i = 0
@@ -507,8 +507,8 @@ await page.evaluate(async () => {
 })
 await page.waitForTimeout(700)
 const imageSrc = await page.evaluate(() => {
-  const found = JSON.stringify(window.lushDev.editor.state.doc.toJSON()).match(
-    /"LushImage","param":"([^"]+)"/,
+  const found = JSON.stringify(window.richDev.editor.state.doc.toJSON()).match(
+    /"RichImage","param":"([^"]+)"/,
   )
   return found ? found[1] : null
 })
@@ -534,17 +534,17 @@ await page.keyboard.press("End")
 await page.keyboard.press("Enter")
 await slash("plugins")
 await page.waitForTimeout(250)
-check("plugins panel opens", await page.isVisible(".lush-plugins-panel"))
+check("plugins panel opens", await page.isVisible(".rich-plugins-panel"))
 await shot("05-plugins")
-const rows = await page.$$eval(".lush-plugin-id", items => items.map(item => item.textContent))
+const rows = await page.$$eval(".rich-plugin-id", items => items.map(item => item.textContent))
 check(
   "panel lists plugins of both types",
   rows.includes("format-bar") && rows.includes("image"),
   rows.join(", "),
 )
-await page.click(".lush-plugin-row:has(.lush-plugin-id:text-is('format-bar')) input")
+await page.click(".rich-plugin-row:has(.rich-plugin-id:text-is('format-bar')) input")
 await page.waitForTimeout(400)
-const pluginList = await page.evaluate(() => window.lushDev.handle.doc().plugins)
+const pluginList = await page.evaluate(() => window.richDev.handle.doc().plugins)
 check("toggle writes doc.plugins", !pluginList.includes("format-bar"), JSON.stringify(pluginList))
 await page.keyboard.press("Escape")
 await page.waitForTimeout(200)
@@ -553,7 +553,7 @@ await page.keyboard.down("Shift")
 await page.keyboard.press("End")
 await page.keyboard.up("Shift")
 await page.waitForTimeout(300)
-check("disabled feature is gone", (await page.$$(".lush-format-bar")).length === 0)
+check("disabled feature is gone", (await page.$$(".rich-format-bar")).length === 0)
 
 check("no page errors", errors.length === 0, errors.slice(0, 3).join(" / "))
 
@@ -576,7 +576,7 @@ const dropped = await refs.evaluate(async () => {
     name: "square",
   })
   const note = await window.repo.create2({
-    "@patchwork": { type: "lush" },
+    "@patchwork": { type: "rich" },
     title: "Another note",
     content: "",
   })
@@ -596,10 +596,10 @@ const dropped = await refs.evaluate(async () => {
   return true
 })
 await refs.waitForTimeout(1200)
-check("sidebar drop inserts embeds", (await refs.$$("lush-embed")).length === 2, String(dropped))
+check("sidebar drop inserts embeds", (await refs.$$("rich-embed")).length === 2, String(dropped))
 const titles = await refs.evaluate(() =>
-  [...document.querySelectorAll("lush-embed")].map(
-    e => e.shadowRoot?.querySelector(".lush-embed-title")?.textContent,
+  [...document.querySelectorAll("rich-embed")].map(
+    e => e.shadowRoot?.querySelector(".rich-embed-title")?.textContent,
   ),
 )
 check("embeds show the document's name", titles.includes("Another note"), titles.join(", "))
@@ -607,7 +607,7 @@ check(
   "image documents render as images",
   await refs.evaluate(
     () =>
-      [...document.querySelectorAll("lush-embed")].filter(e => e.shadowRoot?.querySelector("img"))
+      [...document.querySelectorAll("rich-embed")].filter(e => e.shadowRoot?.querySelector("img"))
         .length === 1,
   ),
 )
@@ -620,7 +620,7 @@ await refs.screenshot({
 const pick = (selector, action = "click") =>
   refs.evaluate(
     ({ selector, action }) => {
-      const root = document.querySelectorAll("lush-embed")[1].shadowRoot
+      const root = document.querySelectorAll("rich-embed")[1].shadowRoot
       const element = root.querySelector(selector)
       if (!element) return null
       if (action === "click") element.click()
@@ -628,23 +628,23 @@ const pick = (selector, action = "click") =>
     },
     { selector, action },
   )
-await pick(".lush-embed-kind")
+await pick(".rich-embed-kind")
 await refs.waitForTimeout(300)
 const tools = await refs.evaluate(() =>
-  [...document.querySelectorAll("lush-embed")[1].shadowRoot.querySelectorAll(".lush-embed-tool")].map(
+  [...document.querySelectorAll("rich-embed")[1].shadowRoot.querySelectorAll(".rich-embed-tool")].map(
     tool => tool.dataset.tool,
   ),
 )
-check("embed offers the tools for its datatype", tools.includes("lush") && tools.includes(""), tools.join(", "))
+check("embed offers the tools for its datatype", tools.includes("rich") && tools.includes(""), tools.join(", "))
 await refs.evaluate(() => {
-  const root = document.querySelectorAll("lush-embed")[1].shadowRoot
-  const search = root.querySelector(".lush-embed-tool-search")
+  const root = document.querySelectorAll("rich-embed")[1].shadowRoot
+  const search = root.querySelector(".rich-embed-tool-search")
   search.value = "raw"
   search.dispatchEvent(new Event("input", { bubbles: true }))
 })
 await refs.waitForTimeout(200)
 const filteredTools = await refs.evaluate(() =>
-  [...document.querySelectorAll("lush-embed")[1].shadowRoot.querySelectorAll(".lush-embed-tool")].map(
+  [...document.querySelectorAll("rich-embed")[1].shadowRoot.querySelectorAll(".rich-embed-tool")].map(
     tool => tool.dataset.tool,
   ),
 )
@@ -655,25 +655,25 @@ await refs.screenshot({
 })
 await refs.evaluate(() =>
   document
-    .querySelectorAll("lush-embed")[1]
-    .shadowRoot.querySelector('.lush-embed-tool[data-tool="raw"]')
+    .querySelectorAll("rich-embed")[1]
+    .shadowRoot.querySelector('.rich-embed-tool[data-tool="raw"]')
     .click(),
 )
 await refs.waitForTimeout(400)
 check(
   "choosing a tool sets it on the embed",
-  (await refs.evaluate(() => document.querySelectorAll("lush-embed")[1]?.getAttribute("tool-id"))) ===
+  (await refs.evaluate(() => document.querySelectorAll("rich-embed")[1]?.getAttribute("tool-id"))) ===
     "raw",
 )
-const embedTrip = await refs.evaluate(() => window.lushDev.roundTrip())
+const embedTrip = await refs.evaluate(() => window.richDev.roundTrip())
 check(
   "the tool is stored on the block",
   embedTrip.spans.includes('"tool":"raw"') && embedTrip.live === embedTrip.rebuilt,
 )
 await refs.evaluate(() => {
-  const root = document.querySelectorAll("lush-embed")[1].shadowRoot
-  root.querySelector(".lush-embed-kind").click()
-  const search = root.querySelector(".lush-embed-tool-search")
+  const root = document.querySelectorAll("rich-embed")[1].shadowRoot
+  root.querySelector(".rich-embed-kind").click()
+  const search = root.querySelector(".rich-embed-tool-search")
   search.value = "some-other-tool"
   search.dispatchEvent(new Event("input", { bubbles: true }))
   search.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
@@ -681,7 +681,7 @@ await refs.evaluate(() => {
 await refs.waitForTimeout(400)
 check(
   "an id can be typed in by hand",
-  (await refs.evaluate(() => document.querySelectorAll("lush-embed")[1]?.getAttribute("tool-id"))) ===
+  (await refs.evaluate(() => document.querySelectorAll("rich-embed")[1]?.getAttribute("tool-id"))) ===
     "some-other-tool",
 )
 // A real document written by the Swift richtext app: its pasted images are
@@ -695,7 +695,7 @@ await foreign.waitForSelector("wg-content", { timeout: 8000 })
 await foreign.waitForTimeout(500)
 check("foreign document loads", (await foreign.$$("wg-content > *")).length > 5)
 check("foreign inline embed renders", (await foreign.$$("patchwork-view")).length === 1)
-const foreignTrip = await foreign.evaluate(() => window.lushDev.roundTrip())
+const foreignTrip = await foreign.evaluate(() => window.richDev.roundTrip())
 check("foreign document round trips", foreignTrip.live === foreignTrip.rebuilt)
 check("foreign document loads clean", foreignErrors.length === 0, foreignErrors.slice(0, 2).join(" / "))
 await foreign.screenshot({

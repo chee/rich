@@ -13,7 +13,7 @@ const check = (name, ok, detail = "") => {
   if (!ok) problems.push(name)
 }
 
-await page.goto("http://localhost:5173/")
+await page.goto(process.env.RICH_DEV_URL ?? "http://localhost:5173/")
 await page.waitForSelector("wg-content")
 await page.click("wg-content")
 for (let i = 0; i < 14; i++) {
@@ -25,7 +25,7 @@ await page.waitForTimeout(200)
 const barBox = async () => {
   await page.waitForTimeout(200)
   return page.evaluate(() => {
-    const bar = document.querySelector(".lush-format-bar")
+    const bar = document.querySelector(".rich-format-bar")
     const { top, left, right, bottom, width, height } = bar.getBoundingClientRect()
     return { top, left, right, bottom, width, height, visible: bar.classList.contains("visible") }
   })
@@ -41,6 +41,9 @@ async function selectAt(index, side) {
     const range = document.createRange()
     range.selectNodeContents(node)
     const { left, right, top, bottom } = range.getBoundingClientRect()
+    // The trailing empty paragraph has a child but no laid-out text, so its
+    // range measures zero — there is no word there to double-click.
+    if (right - left < 1) return null
     return { left, right, top, bottom }
   }, index)
   if (!text) return false

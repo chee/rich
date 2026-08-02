@@ -1,4 +1,4 @@
-# Lush
+# Rich
 
 A collaborative **rich text** editor for Patchwork — a notes app, built on the
 [Wordgard](https://wordgard.net) editor and the
@@ -6,7 +6,7 @@ A collaborative **rich text** editor for Patchwork — a notes app, built on the
 
 Edits sync through an Automerge rich-text field (`content`) that follows the
 [Automerge rich text schema](https://automerge.org/docs/reference/under-the-hood/rich-text-schema/),
-so a `lush` document can be co-edited by multiple peers — and, because it uses
+so a `rich` document can be co-edited by multiple peers — and, because it uses
 the shared schema, interoperates with other rich-text tools built on the same
 model (e.g. `@automerge/prosemirror`).
 
@@ -30,6 +30,9 @@ model (e.g. `@automerge/prosemirror`).
   Automerge blocks, so a layout round-trips.
 - **Tables.** `/table` — wordgard's table support, mapped to
   `table`/`table-row`/`table-cell` blocks.
+- **Nested lists.** Tab nests a list item under the one above it, Shift-Tab
+  pulls it back out (with anything under it following along). Nesting is stored
+  the way the shared schema stores it, as a deeper `parents` stack.
 - **Highlights.** Five of them — pink, yellow, sky, sea, mint — in the bar that
   appears over a selection. Each is a pairing of a background (the editor's own
   fill, nudged towards the hue) and a text colour that sits deep against it.
@@ -49,7 +52,7 @@ model (e.g. `@automerge/prosemirror`).
 
 ## Sharing a document with other editors
 
-`lush` documents are edited by other apps too (chee's Swift *richtext* app),
+`rich` documents are edited by other apps too (chee's Swift *richtext* app),
 so the shapes have to line up:
 
 - **Embeds are inline** (`{type: "embed", isEmbed: true, attrs: {url}}`), which
@@ -83,19 +86,19 @@ and gets everything.
 Three plugin types:
 
 ```js
-// lush:block — a block type: appears under "Turn into" in the slash menu and
+// rich:block — a block type: appears under "Turn into" in the slash menu and
 // in the block handle's menu
-{type: "lush:block", id: "callout", name: "Callout", icon: "<path d='…'/>",
+{type: "rich:block", id: "callout", name: "Callout", icon: "<path d='…'/>",
  keywords: ["aside"], tier: "full",
  async load() { return {active(state) {…}, apply(wg) {…}} }}
 
-// lush:slash — a command: inserts or does something
-{type: "lush:slash", id: "signature", name: "Signature", group: "Mine",
+// rich:slash — a command: inserts or does something
+{type: "rich:slash", id: "signature", name: "Signature", group: "Mine",
  keywords: ["sign"], tier: "full", icon: "<path d='…'/>",
  async load() { return {run(wg, context) { /* dispatch on the editor */ }} }}
 
-// lush:feature — Wordgard extensions
-{type: "lush:feature", id: "spellcheck", name: "Spellcheck", tier: "full",
+// rich:feature — Wordgard extensions
+{type: "rich:feature", id: "spellcheck", name: "Spellcheck", tier: "full",
  async load() { return {extensions(context) { return [/* extensions */] }} }}
 ```
 
@@ -111,18 +114,18 @@ carry their behaviour inline. `context` carries
 - `src/adapter.js` — a `SchemaAdapter` extending `@automerge/wordgard`'s
   `basicSchemaSpec`: an `Embed` leaf (parameter = an `AutomergeUrl`, rendered as
   `<patchwork-view doc-url="…">`), the `Columns`/`Column` plots, and a
-  `LushImage` leaf replacing wordgard's `Image` so an image `src` may be an
+  `RichImage` leaf replacing wordgard's `Image` so an image `src` may be an
   AutomergeUrl. Nesting is expressed in the Automerge encoding through each
   block marker's `parents`, so columns are portable.
-- `src/datatype.js` — the `lush` datatype. `init` seeds a `content` rich-text
+- `src/datatype.js` — the `rich` datatype. `init` seeds a `content` rich-text
   field with an empty paragraph so every peer starts from the same structure.
 - `src/tool.js` — the render function: schema + editing bundles + history +
   `automergeSyncPlugin`, then whatever `doc.plugins` resolves to.
 - `src/features.js`, `src/slash.js`, `src/block-types.js`, `src/blocks.js`,
-  `src/block-menu.js`, `src/format-bar.js`, `src/images.js` — the built-in
-  plugins and the menus.
+  `src/block-menu.js`, `src/format-bar.js`, `src/images.js`, `src/lists.js` —
+  the built-in plugins and the menus.
 - `src/highlight.js` — the named highlight mark; `src/icons.js` — menu glyphs.
-- `src/embed-element.js` — `<lush-embed>`, the window an embedded document
+- `src/embed-element.js` — `<rich-embed>`, the window an embedded document
   draws for itself (shadow DOM, so the editor can't wipe its chrome). Image
   file documents render as an `<img>`, everything else mounts a
   `<patchwork-view>`; the look follows `space`'s canvas windows. The type badge
@@ -130,7 +133,7 @@ carry their behaviour inline. `context` carries
   datatype — or type an id and press Enter to use one the registry doesn't know
   about. The choice is a mark on the embed (`tool` on the block, `tool-id` on
   the element), so it belongs to the document. The element only *asks*, by
-  dispatching `lush-embed-tool`; the editor owns the change.
+  dispatching `rich-embed-tool`; the editor owns the change.
 - `src/files.js` — file documents in, service-worker URLs out.
 - `src/wordgard/` — the Automerge bindings, vendored.
 - `src/registry.js`, `src/plugin-catalog.js`, `src/plugins-panel.js` — the

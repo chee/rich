@@ -59,12 +59,12 @@ export function docFromSpansCompat(adapter, spans) {
   try {
     return docFromSpans(adapter, spans)
   } catch (error) {
-    console.warn("lush: document written by another editor needed repair", error)
+    console.warn("rich: document written by another editor needed repair", error)
   }
   try {
     return docFromSpans(adapter, repairSpans(adapter, spans))
   } catch (error) {
-    console.error("lush: falling back to plain text", error)
+    console.error("rich: falling back to plain text", error)
   }
   return textOnly(adapter, spans)
 }

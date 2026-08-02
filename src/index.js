@@ -1,4 +1,4 @@
-// "lush" — a collaborative rich text editor for Patchwork, built on the
+// "rich" — a collaborative rich text editor for Patchwork, built on the
 // Wordgard editor and the Automerge bindings in src/wordgard. The entry module
 // only carries plugin metadata; the datatype and the tool are lazily
 // imported so the registry stays cheap to read.
@@ -6,19 +6,19 @@
 export const plugins = [
   {
     type: "patchwork:datatype",
-    id: "lush",
-    name: "Lush",
+    id: "rich",
+    name: "Note",
     icon: "FileText",
     async load() {
-      return (await import("./datatype.js")).LushDatatype
+      return (await import("./datatype.js")).RichDatatype
     },
   },
   {
     type: "patchwork:tool",
-    id: "lush",
-    name: "Lush",
+    id: "rich",
+    name: "Rich",
     icon: "FileText",
-    supportedDatatypes: ["lush", "rich"],
+    supportedDatatypes: ["rich"],
     async load() {
       return (await import("./tool.js")).default
     },

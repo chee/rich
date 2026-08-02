@@ -66,18 +66,18 @@ function linkControl(wg) {
   const button = el(
     "button",
     {
-      class: "lush-format-button",
+      class: "rich-format-button",
       type: "button",
       title: "Link",
       onmousedown: event => {
         event.preventDefault()
-        control.querySelector(".lush-link-editor") ? close() : open()
+        control.querySelector(".rich-link-editor") ? close() : open()
       },
     },
     "↗",
   )
 
-  const control = el("span", { class: "lush-link-control" }, button)
+  const control = el("span", { class: "rich-link-control" }, button)
 
   let close = () => {}
 
@@ -87,7 +87,7 @@ function linkControl(wg) {
     // link is for has to be remembered and put back before applying it.
     const { from, to } = wg.state.selection
     const input = el("input", {
-      class: "lush-link-input",
+      class: "rich-link-input",
       type: "url",
       placeholder: "https://…",
       value: existing?.value ?? "",
@@ -106,19 +106,19 @@ function linkControl(wg) {
     const form = el(
       "form",
       {
-        class: "lush-link-editor",
+        class: "rich-link-editor",
         onsubmit: event => {
           event.preventDefault()
           commit()
         },
       },
       input,
-      el("button", { class: "lush-link-submit", type: "submit" }, existing ? "Update" : "Link"),
+      el("button", { class: "rich-link-submit", type: "submit" }, existing ? "Update" : "Link"),
       existing
         ? el(
             "button",
             {
-              class: "lush-link-remove",
+              class: "rich-link-remove",
               type: "button",
               title: "Remove link",
               onmousedown: event => {
@@ -181,7 +181,7 @@ function highlightControl(wg) {
   const marker = el(
     "button",
     {
-      class: "lush-format-button lush-highlight-marker",
+      class: "rich-format-button rich-highlight-marker",
       type: "button",
       title: "Highlight",
       onmousedown: event => {
@@ -193,7 +193,7 @@ function highlightControl(wg) {
   )
 
   const dot = el("button", {
-    class: `lush-highlight-dot lush-highlight-${colour}`,
+    class: `rich-highlight-dot rich-highlight-${colour}`,
     type: "button",
     title: "Highlight colour",
     "data-highlight": colour,
@@ -205,14 +205,14 @@ function highlightControl(wg) {
 
   const setColour = name => {
     colour = name
-    dot.className = `lush-highlight-dot lush-highlight-${name}`
+    dot.className = `rich-highlight-dot rich-highlight-${name}`
     dot.dataset.highlight = name
   }
 
-  const control = el("span", { class: "lush-highlight-control" }, marker, dot)
+  const control = el("span", { class: "rich-highlight-control" }, marker, dot)
 
   function openChooser() {
-    control.querySelector(".lush-highlight-chooser")?.remove()
+    control.querySelector(".rich-highlight-chooser")?.remove()
     const close = () => {
       chooser.remove()
       document.removeEventListener("mousedown", onOutside, true)
@@ -229,7 +229,7 @@ function highlightControl(wg) {
     }
     const swatch = name =>
       el("button", {
-        class: `lush-highlight-swatch lush-highlight-${name ?? "none"}`,
+        class: `rich-highlight-swatch rich-highlight-${name ?? "none"}`,
         type: "button",
         title: name ? `Highlight ${name}` : "No highlight",
         "data-highlight": name ?? "none",
@@ -242,7 +242,7 @@ function highlightControl(wg) {
       })
     const chooser = el(
       "div",
-      { class: "lush-highlight-chooser" },
+      { class: "rich-highlight-chooser" },
       ...HIGHLIGHTS.map(swatch),
       swatch(null),
     )
@@ -258,36 +258,36 @@ function highlightControl(wg) {
 // it could be instead. The list is `context.blockTypes()`, the same one the
 // slash menu and the block handle read, so a contributed type appears here too.
 function blockTypeControl(wg, context) {
-  const glyph = el("span", { class: "lush-slash-icon" })
-  const label = el("span", { class: "lush-format-block-name" }, "Body")
+  const glyph = el("span", { class: "rich-slash-icon" })
+  const label = el("span", { class: "rich-format-block-name" }, "Body")
   const button = el(
     "button",
     {
-      class: "lush-format-block",
+      class: "rich-format-block",
       type: "button",
       onmousedown: event => {
         event.preventDefault()
-        control.querySelector(".lush-format-block-menu") ? close() : open()
+        control.querySelector(".rich-format-block-menu") ? close() : open()
       },
     },
     glyph,
     label,
-    el("span", { class: "lush-format-chevron" }, "›"),
+    el("span", { class: "rich-format-chevron" }, "›"),
   )
 
-  const control = el("div", { class: "lush-format-block-control" }, button)
+  const control = el("div", { class: "rich-format-block-control" }, button)
 
   let close = () => {}
 
   function open() {
     const menu = el(
       "div",
-      { class: "lush-format-block-menu" },
+      { class: "rich-format-block-menu" },
       context.blockTypes().map(block =>
         el(
           "button",
           {
-            class: "lush-format-block-item",
+            class: "rich-format-block-item",
             type: "button",
             onmousedown: event => {
               event.preventDefault()
@@ -296,9 +296,9 @@ function blockTypeControl(wg, context) {
               wg.focus()
             },
           },
-          el("span", { class: "lush-slash-icon" }, icon(block)),
-          el("span", { class: "lush-slash-name" }, block.name),
-          block.active?.(wg.state) ? el("span", { class: "lush-format-tick" }, "✓") : null,
+          el("span", { class: "rich-slash-icon" }, icon(block)),
+          el("span", { class: "rich-slash-name" }, block.name),
+          block.active?.(wg.state) ? el("span", { class: "rich-format-tick" }, "✓") : null,
         ),
       ),
     )
@@ -347,8 +347,8 @@ class FormatBar {
     // Two rows: what this block is, then how the selected characters look.
     // Cells hold inline content, so the block row has nothing to offer there.
     this.blockType = blockTypeControl(wg, context)
-    const row = el("div", { class: "lush-format-row" })
-    this.bar = el("div", { class: "lush-format-bar" }, this.blockType.control, row)
+    const row = el("div", { class: "rich-format-row" })
+    this.bar = el("div", { class: "rich-format-bar" }, this.blockType.control, row)
     this.parts.push({ element: this.blockType.control, when: state => !inTable(state) })
     const part = (element, when) => {
       this.parts.push({ element, when: when ?? (state => !cellSelection(state)) })
@@ -356,13 +356,13 @@ class FormatBar {
     }
     for (const action of ACTIONS) {
       if (action.separator) {
-        part(el("span", { class: "lush-format-separator" }), action.when)
+        part(el("span", { class: "rich-format-separator" }), action.when)
         continue
       }
       const button = el(
         "button",
         {
-          class: "lush-format-button",
+          class: "rich-format-button",
           type: "button",
           title: action.title,
           onmousedown: event => {
@@ -377,11 +377,11 @@ class FormatBar {
     }
     this.link = linkControl(wg)
     part(this.link.control)
-    part(el("span", { class: "lush-format-separator" }))
+    part(el("span", { class: "rich-format-separator" }))
     this.highlight = highlightControl(wg)
     part(this.highlight.control)
     this.table = tableMenu(wg)
-    part(el("span", { class: "lush-format-separator" }), inTable)
+    part(el("span", { class: "rich-format-separator" }), inTable)
     part(this.table.control, inTable)
   }
 

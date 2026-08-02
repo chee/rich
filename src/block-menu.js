@@ -1,5 +1,5 @@
 // The menu behind the block handle: turn this block into another type, colour
-// it, duplicate it, delete it. The block types are the same `lush:block`
+// it, duplicate it, delete it. The block types are the same `rich:block`
 // plugins the slash menu offers, so a contributed type shows up in both.
 import { Slice } from "wordgard/doc"
 import { el } from "./dom.js"
@@ -12,7 +12,7 @@ function put(wg, range) {
 }
 
 export function openBlockMenu({ wg, parent, anchor, blockTypes, range, context }) {
-  parent.querySelector(".lush-block-menu")?.remove()
+  parent.querySelector(".rich-block-menu")?.remove()
   put(wg, range)
 
   const close = () => {
@@ -40,7 +40,7 @@ export function openBlockMenu({ wg, parent, anchor, blockTypes, range, context }
     el(
       "button",
       {
-        class: block.active?.(wg.state) ? "lush-block-menu-item active" : "lush-block-menu-item",
+        class: block.active?.(wg.state) ? "rich-block-menu-item active" : "rich-block-menu-item",
         type: "button",
         onclick: act(() => {
           // The selection may have wandered (a colour click, a click in the
@@ -49,8 +49,8 @@ export function openBlockMenu({ wg, parent, anchor, blockTypes, range, context }
           block.apply(wg, context)
         }),
       },
-      el("span", { class: "lush-slash-icon" }, icon(block)),
-      el("span", { class: "lush-slash-name" }, block.name),
+      el("span", { class: "rich-slash-icon" }, icon(block)),
+      el("span", { class: "rich-slash-name" }, block.name),
     )
 
   const duplicate = () => {
@@ -72,27 +72,27 @@ export function openBlockMenu({ wg, parent, anchor, blockTypes, range, context }
   const tableButton = action =>
     el(
       "button",
-      { class: "lush-block-menu-item", type: "button", onclick: act(() => action.run(wg, table)) },
-      el("span", { class: "lush-slash-name" }, action.label),
+      { class: "rich-block-menu-item", type: "button", onclick: act(() => action.run(wg, table)) },
+      el("span", { class: "rich-slash-name" }, action.label),
     )
 
   const menu = el(
     "div",
-    { class: "lush-block-menu" },
-    el("div", { class: "lush-block-menu-group" }, "Turn into"),
+    { class: "rich-block-menu" },
+    el("div", { class: "rich-block-menu-group" }, "Turn into"),
     ...blockTypes.map(typeButton),
-    table ? el("div", { class: "lush-block-menu-group" }, "Table") : null,
+    table ? el("div", { class: "rich-block-menu-group" }, "Table") : null,
     ...(table ? TABLE_BLOCK_ACTIONS.map(tableButton) : []),
-    el("div", { class: "lush-block-menu-group" }, "Block"),
+    el("div", { class: "rich-block-menu-group" }, "Block"),
     el(
       "button",
-      { class: "lush-block-menu-item", type: "button", onclick: act(duplicate) },
-      el("span", { class: "lush-slash-name" }, "Duplicate"),
+      { class: "rich-block-menu-item", type: "button", onclick: act(duplicate) },
+      el("span", { class: "rich-slash-name" }, "Duplicate"),
     ),
     el(
       "button",
-      { class: "lush-block-menu-item danger", type: "button", onclick: act(remove) },
-      el("span", { class: "lush-slash-name" }, "Delete"),
+      { class: "rich-block-menu-item danger", type: "button", onclick: act(remove) },
+      el("span", { class: "rich-slash-name" }, "Delete"),
     ),
   )
 

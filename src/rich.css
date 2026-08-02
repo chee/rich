@@ -1,0 +1,959 @@
+@layer package {
+  :root,
+  :host,
+  [theme] {
+    --rich-fill: var(--editor-fill, white);
+    --rich-line: var(--editor-line, black);
+    --rich-muted: var(--editor-line-offset-50, #8a8a8e);
+    --rich-faint: var(--editor-line-offset-70, #b6b6ba);
+    --rich-border: var(--editor-fill-offset-20, #e3e3e6);
+    --rich-family: var(--editor-family-sans, ui-sans-serif, system-ui, sans-serif);
+    --rich-mono: var(--editor-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    --rich-accent: var(--studio-primary, #f4b400);
+    --rich-link: var(--studio-link, #2f6fe4);
+    --rich-panel: color-mix(in oklch, var(--editor-fill, white), var(--editor-line, black) 4%);
+    --rich-sunk: color-mix(in oklch, var(--editor-fill, white), var(--editor-line, black) 6%);
+    --rich-shadow: 0 8px 24px -8px color-mix(in oklch, var(--editor-line, black) 35%, transparent);
+    --rich-measure: 42rem;
+  }
+}
+
+.rich-tool {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--rich-fill);
+  color: var(--rich-line);
+  font-family: var(--rich-family);
+}
+
+.rich-tool .rich-page {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* The editor element: no chrome of its own — the page is the chrome. */
+.rich-tool .rich-page > * {
+  border: 0 !important;
+  outline: none !important;
+  height: 100%;
+  background: transparent;
+}
+
+.rich-tool .rich-page wg-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: var(--rich-faint) transparent;
+}
+
+/* The text column is centred with padding rather than `margin: auto`, because
+   wordgard measures the cursor of an empty block from the content box's own
+   origin and lands in the wrong place when that box is offset. */
+.rich-tool .rich-page wg-content {
+  padding: 3rem max(1.5rem, calc((100% - var(--rich-measure)) / 2)) 40vh;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  hyphens: auto;
+}
+
+/* Notey, not blocky: pressing return gives you the next line, not a gap.
+   The blocks that need air ask for it themselves. */
+.rich-tool .rich-page wg-content > * {
+  margin: 0;
+}
+
+.rich-tool .rich-page wg-content > pre,
+.rich-tool .rich-page wg-content > ul,
+.rich-tool .rich-page wg-content > ol,
+.rich-tool .rich-page wg-content > img,
+.rich-tool .rich-page wg-content > hr {
+  margin: 0.7em 0;
+}
+
+/* Notes-style: the first line of the note is its title — but only when it is
+   an ordinary paragraph; a note that opens with a list or a heading keeps that
+   block's own styling. */
+.rich-tool .rich-page wg-content > p:first-child {
+  font-size: 1.75rem;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  margin-bottom: 1rem;
+}
+
+.rich-tool .rich-page wg-content h1,
+.rich-tool .rich-page wg-content h2,
+.rich-tool .rich-page wg-content h3,
+.rich-tool .rich-page wg-content h4 {
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  margin: 1.6em 0 0.4em;
+}
+
+.rich-tool .rich-page wg-content h1 { font-size: 1.6rem; }
+.rich-tool .rich-page wg-content h2 { font-size: 1.3rem; }
+.rich-tool .rich-page wg-content h3 { font-size: 1.1rem; }
+
+.rich-tool .rich-page wg-content blockquote {
+  margin: 0.8em 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--rich-border);
+  color: var(--rich-muted);
+}
+
+.rich-tool .rich-page wg-content pre {
+  font-family: var(--rich-mono);
+  font-size: 0.9em;
+  background: var(--rich-sunk);
+  border-radius: 6px;
+  padding: 0.75rem 0.9rem;
+  overflow-x: auto;
+}
+
+.rich-tool .rich-page wg-content code {
+  font-family: var(--rich-mono);
+  font-size: 0.9em;
+  background: var(--rich-sunk);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+
+.rich-tool .rich-page wg-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.rich-tool .rich-page wg-content ul,
+.rich-tool .rich-page wg-content ol {
+  padding-left: 1.4rem;
+}
+
+.rich-tool .rich-page wg-content li {
+  margin: 0;
+}
+
+/* A list item holds block content, so each line is a paragraph inside the
+   <li>; without this the browser's paragraph margins push the bullets apart. */
+.rich-tool .rich-page wg-content li > p,
+.rich-tool .rich-page wg-content blockquote > p,
+.rich-tool .rich-page wg-content td > p,
+.rich-tool .rich-page wg-content th > p {
+  margin: 0;
+}
+
+.rich-tool .rich-page wg-content li > * + *,
+.rich-tool .rich-page wg-content blockquote > * + * {
+  margin-top: 0.4em;
+}
+
+.rich-tool .rich-page wg-content li > ul,
+.rich-tool .rich-page wg-content li > ol {
+  margin-top: 0;
+}
+
+.rich-tool .rich-page wg-content a {
+  color: var(--rich-link);
+  text-underline-offset: 2px;
+}
+
+.rich-tool .rich-page wg-content img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.rich-tool .rich-page wg-placeholder {
+  color: var(--rich-faint);
+  opacity: 1;
+}
+
+/* A dropped document embeds as a card. Wordgard renders the atom leaf as
+   <patchwork-view>, which mounts the referenced document itself. */
+.rich-tool patchwork-view {
+  display: block;
+  margin: 0.75rem 0;
+  min-height: 2.5rem;
+  border: 1px solid var(--rich-border);
+  border-radius: 10px;
+  background: var(--rich-panel);
+  overflow: hidden;
+  max-height: 480px;
+}
+
+.rich-tool .wg-selected-node {
+  outline: 2px solid var(--rich-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Block handles — the gutter that follows the hovered block. */
+.rich-gutter {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  transform: translateX(calc(-100% - 8px));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.rich-gutter.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.rich-gutter-button {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--rich-faint);
+  cursor: pointer;
+}
+
+.rich-gutter-button:hover {
+  background: var(--rich-sunk);
+  color: var(--rich-line);
+}
+
+.rich-gutter-grip {
+  cursor: grab;
+  -webkit-user-drag: element;
+  user-select: none;
+}
+
+.rich-dragging .rich-gutter-grip {
+  cursor: grabbing;
+}
+
+.rich-drop-indicator {
+  position: absolute;
+  z-index: 20;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--rich-accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.rich-drop-indicator.visible {
+  opacity: 1;
+}
+
+/* Slash menu. */
+.rich-slash {
+  min-width: 15rem;
+  max-height: 19rem;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 10px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+  font-family: var(--rich-family);
+  font-size: 0.875rem;
+  color: var(--rich-line);
+}
+
+.rich-slash-group {
+  padding: 6px 8px 2px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rich-muted);
+}
+
+.rich-slash-item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.rich-slash-item:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-slash-item.selected {
+  background: color-mix(in oklch, var(--rich-accent) 25%, var(--rich-panel));
+  box-shadow: inset 2px 0 0 var(--rich-accent);
+}
+
+.rich-slash-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: var(--rich-fill);
+  border: 1px solid var(--rich-border);
+  color: var(--rich-line);
+}
+
+/* Selection format bar. */
+.rich-format-bar {
+  position: absolute;
+  z-index: 30;
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: min(calc(100vw - 24px), 32rem);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
+.rich-format-bar.visible {
+  display: flex;
+}
+
+/* Row two: the character formatting. */
+.rich-format-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* Row one: what this block is, dropping down what else it could be. */
+.rich-format-block-control {
+  position: relative;
+  display: flex;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--rich-border);
+  margin-bottom: 1px;
+}
+
+.rich-format-block {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.rich-format-block:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-format-block-name {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.rich-format-chevron {
+  color: var(--rich-faint);
+}
+
+.rich-format-block-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
+.rich-format-block-item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rich-format-block-item:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-format-tick {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--rich-accent);
+}
+
+.rich-format-button {
+  all: unset;
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 0.8125rem;
+  color: var(--rich-line);
+  cursor: pointer;
+}
+
+.rich-format-button:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-format-button.active {
+  background: var(--rich-accent);
+}
+
+.rich-format-button[title="Bold"] { font-weight: 700; }
+.rich-format-button[title="Italic"] { font-style: italic; font-family: serif; }
+
+.rich-format-separator {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--rich-border);
+}
+
+.rich-format-bar .hidden {
+  display: none;
+}
+
+.rich-dialog {
+  font-family: var(--rich-family);
+}
+
+/* Columns — the Notion arrangement: blocks side by side. */
+.rich-tool .rich-columns {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 1.25rem;
+  align-items: start;
+  margin: 0.75rem 0;
+}
+
+.rich-tool .rich-column {
+  min-width: 0;
+  padding-left: 0.25rem;
+  border-left: 1px solid transparent;
+}
+
+.rich-tool .rich-column:hover {
+  border-left-color: var(--rich-border);
+}
+
+.rich-tool .rich-column > :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 34rem) {
+  .rich-tool .rich-columns {
+    grid-auto-flow: row;
+  }
+}
+
+/* Images are file documents; the <img> resolves them through the service
+   worker. A broken/loading one still needs to be selectable. */
+.rich-tool .rich-page wg-content img {
+  display: block;
+  max-width: 100%;
+  min-height: 1.2em;
+  border-radius: 8px;
+}
+
+/* The /plugins panel. */
+.rich-plugins-panel {
+  position: absolute;
+  z-index: 40;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, calc(100% - 2rem));
+  max-height: 70%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rich-border);
+  border-radius: 12px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+  font-family: var(--rich-family);
+  color: var(--rich-line);
+}
+
+.rich-plugins-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--rich-border);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.rich-plugins-close {
+  all: unset;
+  cursor: pointer;
+  padding: 0 0.35rem;
+  border-radius: 5px;
+  color: var(--rich-muted);
+}
+
+.rich-plugins-close:hover {
+  background: var(--rich-sunk);
+  color: var(--rich-line);
+}
+
+.rich-plugins-body {
+  overflow-y: auto;
+  padding: 0.35rem;
+}
+
+.rich-plugin-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.rich-plugin-row:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-plugin-row.locked {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.rich-plugin-name {
+  flex: 1;
+}
+
+.rich-plugin-id {
+  font-family: var(--rich-mono);
+  font-size: 0.75rem;
+  color: var(--rich-muted);
+}
+
+.rich-plugins-section {
+  padding: 0.6rem 0.5rem 0.2rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rich-muted);
+}
+
+.rich-drop-indicator.vertical {
+  width: 2px;
+  height: auto;
+  margin-left: -1px;
+}
+
+/* Embedded documents draw themselves — see embed-element.js, which renders
+   into a shadow root so the editor can't wipe its chrome. */
+
+/* Tables. */
+.rich-tool .rich-page wg-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+  font-size: 0.95em;
+}
+
+.rich-tool .rich-page wg-content th,
+.rich-tool .rich-page wg-content td {
+  border: 1px solid var(--rich-border);
+  padding: 0.35em 0.55em;
+  vertical-align: top;
+  min-width: 3rem;
+}
+
+.rich-tool .rich-page wg-content th {
+  background: var(--rich-sunk);
+  font-weight: 600;
+  text-align: start;
+}
+
+.rich-tool .rich-page wg-content .wg-selected-cell {
+  outline: 2px solid var(--rich-accent);
+  outline-offset: -2px;
+}
+
+/* Table handles: a grip along each row and column that selects it, and a "+"
+   past the last of each that grows the table. Drawn in an overlay rather than
+   in the table, which the editor owns. */
+.rich-table-handles {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+/* `all: unset` first: it would otherwise wipe the positioning these need. */
+.rich-table-plus {
+  all: unset;
+}
+
+.rich-table-grip,
+.rich-table-plus {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.rich-table-grip {
+  border-radius: 3px;
+  background: var(--rich-border);
+  opacity: 0.6;
+}
+
+.rich-table-grip:hover {
+  background: var(--rich-accent);
+  opacity: 1;
+}
+
+.rich-table-plus {
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--rich-faint);
+  background: var(--rich-sunk);
+}
+
+.rich-table-plus.column {
+  width: 14px;
+}
+
+.rich-table-plus.row {
+  height: 14px;
+}
+
+.rich-table-plus:hover {
+  color: var(--rich-line);
+  background: var(--rich-border);
+}
+
+/* Highlights: five hues from chee's palette (create-chee-app's palette.css),
+   each worn as a background — the editor's own fill nudged towards the hue —
+   and a text colour, the same hue taken deep or bright. `light-dark()` picks
+   between them per the current `color-scheme`, so they follow the theme the
+   editor is wearing rather than the reader's operating system. */
+@layer package {
+  :root,
+  :host,
+  [theme] {
+    --rich-highlight-pink-hue: oklch(0.67 0.29 340.37); /* pizzazz */
+    --rich-highlight-yellow-hue: oklch(0.86 0.16 87.44); /* sunglow */
+    --rich-highlight-sky-hue: oklch(0.79 0.14 226.17); /* sky */
+    --rich-highlight-sea-hue: oklch(0.57 0.23 262.55); /* f-blue */
+    --rich-highlight-mint-hue: oklch(0.88 0.17 167.51); /* mynt */
+
+    --rich-highlight-pink-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-pink-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-pink-hue) 28%)
+    );
+    --rich-highlight-pink-ink: light-dark(
+      oklch(from var(--rich-highlight-pink-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-pink-hue) 0.86 c h)
+    );
+    --rich-highlight-yellow-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-yellow-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-yellow-hue) 28%)
+    );
+    --rich-highlight-yellow-ink: light-dark(
+      oklch(from var(--rich-highlight-yellow-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-yellow-hue) 0.86 c h)
+    );
+    --rich-highlight-sky-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-sky-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-sky-hue) 28%)
+    );
+    --rich-highlight-sky-ink: light-dark(
+      oklch(from var(--rich-highlight-sky-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-sky-hue) 0.86 c h)
+    );
+    --rich-highlight-sea-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-sea-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-sea-hue) 28%)
+    );
+    /* Sea is the deepest of the five: taken as light as the others its chroma
+       clips away to lavender-grey, so on dark it stays lower and keeps its
+       blue. */
+    --rich-highlight-sea-ink: light-dark(
+      oklch(from var(--rich-highlight-sea-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-sea-hue) 0.72 calc(c * 1.4) h)
+    );
+    --rich-highlight-mint-bg: light-dark(
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-mint-hue) 18%),
+      color-mix(in oklch, var(--rich-fill), var(--rich-highlight-mint-hue) 28%)
+    );
+    --rich-highlight-mint-ink: light-dark(
+      oklch(from var(--rich-highlight-mint-hue) 0.45 c h),
+      oklch(from var(--rich-highlight-mint-hue) 0.86 c h)
+    );
+  }
+}
+
+
+.rich-tool .rich-highlight {
+  border-radius: 3px;
+  padding: 0.05em 0.15em;
+  margin: 0 -0.05em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.rich-tool .rich-highlight-pink {
+  background: var(--rich-highlight-pink-bg);
+  color: var(--rich-highlight-pink-ink);
+}
+.rich-tool .rich-highlight-yellow {
+  background: var(--rich-highlight-yellow-bg);
+  color: var(--rich-highlight-yellow-ink);
+}
+.rich-tool .rich-highlight-sky {
+  background: var(--rich-highlight-sky-bg);
+  color: var(--rich-highlight-sky-ink);
+}
+.rich-tool .rich-highlight-sea {
+  background: var(--rich-highlight-sea-bg);
+  color: var(--rich-highlight-sea-ink);
+}
+.rich-tool .rich-highlight-mint {
+  background: var(--rich-highlight-mint-bg);
+  color: var(--rich-highlight-mint-ink);
+}
+
+/* The link editor: hung off the link button, so it sits at the words being
+   linked rather than at the edge of the editor. */
+.rich-link-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rich-link-editor {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
+.rich-link-input {
+  all: unset;
+  width: 15rem;
+  padding: 4px 7px;
+  border: 1px solid var(--rich-border);
+  border-radius: 5px;
+  background: var(--rich-fill);
+  color: var(--rich-line);
+  font-family: var(--rich-family);
+  font-size: 0.85rem;
+}
+
+.rich-link-input:focus {
+  border-color: var(--rich-accent);
+}
+
+.rich-link-submit,
+.rich-link-remove {
+  all: unset;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rich-link-submit:hover,
+.rich-link-remove:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-link-remove {
+  color: var(--rich-muted);
+}
+
+/* The table control in the selection bar: one button, dropping down the
+   row and column actions. */
+.rich-table-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rich-table-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
+.rich-table-menu-item {
+  all: unset;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rich-table-menu-item:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-table-menu-item.danger:hover {
+  background: color-mix(in oklch, var(--rich-fill), #ff4d4d 16%);
+  color: #b02424;
+}
+
+/* The highlight control in the selection bar: a marker that applies the
+   current colour, and a dot wearing that colour that opens the list. */
+.rich-highlight-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.rich-highlight-dot {
+  all: unset;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--rich-border);
+  cursor: pointer;
+}
+
+.rich-highlight-dot:hover {
+  border-color: var(--rich-line);
+}
+
+.rich-highlight-chooser {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 8px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+}
+
+.rich-highlight-swatch {
+  all: unset;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.rich-highlight-swatch:hover {
+  border-color: var(--rich-line);
+}
+
+.rich-highlight-swatch[data-highlight="none"],
+.rich-highlight-dot[data-highlight="none"] {
+  background:
+    linear-gradient(
+      to top right,
+      transparent 45%,
+      var(--rich-faint) 45%,
+      var(--rich-faint) 55%,
+      transparent 55%
+    );
+}
+
+
+/* The block handle's menu. */
+.rich-block-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 13rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 10px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+  font-family: var(--rich-family);
+  font-size: 0.875rem;
+  color: var(--rich-line);
+}
+
+.rich-block-menu-group {
+  padding: 6px 8px 2px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rich-muted);
+}
+
+.rich-block-menu-item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.rich-block-menu-item:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-block-menu-item.active {
+  background: color-mix(in oklch, var(--rich-accent) 25%, var(--rich-panel));
+}
+
+.rich-block-menu-item.danger:hover {
+  background: color-mix(in oklch, var(--rich-fill), #ff4d4d 16%);
+  color: #b02424;
+}
+
+/* Blocks and commands read differently in the slash menu. */
+.rich-slash-kind {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  color: var(--rich-faint);
+}

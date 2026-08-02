@@ -1,4 +1,4 @@
-// The extension seam. `lush` reads its own features and slash commands out of
+// The extension seam. `rich` reads its own features and slash commands out of
 // the host plugin registry, merged with its built-ins, so another bundle can
 // contribute to this editor without the tool knowing about it. Same shape as
 // the chat tool's registry helpers.

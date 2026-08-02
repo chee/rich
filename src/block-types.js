@@ -1,5 +1,5 @@
-// Block types are their own plugin kind, `lush:block`: what a block *is*, as
-// opposed to a `lush:slash` command, which *does* something. The two are kept
+// Block types are their own plugin kind, `rich:block`: what a block *is*, as
+// opposed to a `rich:slash` command, which *does* something. The two are kept
 // apart because the same list of block types drives the "Turn into" section of
 // both the slash menu and the block handle's menu — and a host can contribute
 // to either kind.
@@ -14,7 +14,7 @@ import {
 } from "wordgard/types"
 
 const blockType = (id, name, icon, keywords, { active, apply }) => ({
-  type: "lush:block",
+  type: "rich:block",
   id,
   name,
   icon,

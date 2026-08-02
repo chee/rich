@@ -1,6 +1,6 @@
 // Highlighting a span: five named highlights, each a pairing of a background
 // (an offset from the editor's own fill) and a text colour, defined for light
-// and dark schemes in lush.css. The document stores the name — "pink" — so the
+// and dark schemes in rich.css. The document stores the name — "pink" — so the
 // look belongs to the theme, not the note.
 import { Mark } from "wordgard/doc"
 
@@ -14,7 +14,7 @@ export const Highlight = Mark.Type.define("Highlight", {
   validate: "string",
   shape: {
     element: "span",
-    attributes: value => ({ class: `lush-highlight lush-highlight-${named(value) ?? "pink"}` }),
+    attributes: value => ({ class: `rich-highlight rich-highlight-${named(value) ?? "pink"}` }),
   },
 })
 

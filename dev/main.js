@@ -1,7 +1,7 @@
 import { Repo } from "@automerge/automerge-repo"
 import { getRegistry } from "@inkandswitch/patchwork-plugins"
-import { LushDatatype } from "../src/datatype.js"
-import LushTool from "../src/tool.js"
+import { RichDatatype } from "../src/datatype.js"
+import RichTool from "../src/tool.js"
 import { Embed } from "../src/adapter.js"
 import { roundTrip } from "./roundtrip.js"
 
@@ -14,12 +14,12 @@ const fixture = new URLSearchParams(location.search).get("fixture")
 const handle = fixture
   ? await repo.import(new Uint8Array(await (await fetch(`./fixtures/${fixture}.automerge`)).arrayBuffer()))
   : repo.create()
-if (!fixture) handle.change(doc => LushDatatype.init(doc))
+if (!fixture) handle.change(doc => RichDatatype.init(doc))
 
 // A registry-contributed slash command, to exercise the extension seam the way
 // another bundle would use it.
-getRegistry("lush:slash").register({
-  type: "lush:slash",
+getRegistry("rich:slash").register({
+  type: "rich:slash",
   id: "signature",
   name: "Signature",
   group: "Dev",
@@ -36,6 +36,6 @@ getRegistry("lush:slash").register({
   },
 })
 
-const cleanup = LushTool(handle, document.getElementById("app"))
-const editor = document.querySelector(".lush-page").wordgard
-window.lushDev = {handle, repo, cleanup, editor, Embed, roundTrip: () => roundTrip(handle, editor)}
+const cleanup = RichTool(handle, document.getElementById("app"))
+const editor = document.querySelector(".rich-page").wordgard
+window.richDev = {handle, repo, cleanup, editor, Embed, roundTrip: () => roundTrip(handle, editor)}

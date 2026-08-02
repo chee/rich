@@ -15,7 +15,7 @@ import { srcForImage } from "./files.js"
 import { Highlight, highlightParsers } from "./highlight.js"
 
 // An embedded Patchwork document. Its parameter is the document's
-// AutomergeUrl; its shape renders `<lush-embed doc-url="…">` (see
+// AutomergeUrl; its shape renders `<rich-embed doc-url="…">` (see
 // embed-element.js), which draws the window chrome and mounts the document
 // itself — so no manual node view is needed.
 //
@@ -37,7 +37,7 @@ export const Embed = Leaf.Type.define("Embed", {
   validate: "string",
   selectable: true,
   shape: {
-    element: "lush-embed",
+    element: "rich-embed",
     attributes: url => ({ "doc-url": url }),
   },
 })
@@ -47,7 +47,7 @@ export const Embed = Leaf.Type.define("Embed", {
 // document keeps the automerge URL (durable, host-independent) and only the
 // rendered `<img>` gets the service-worker URL. It still maps to the standard
 // `image` block, so plain-URL images stay interoperable.
-export const LushImage = Leaf.Type.define("LushImage", {
+export const RichImage = Leaf.Type.define("RichImage", {
   inline: true,
   validate: "string",
   selectable: true,
@@ -68,7 +68,7 @@ export const Column = Plot.define("Column", {
   blockContent: Node.Group.Content,
   isolating: true,
   defining: true,
-  shape: { element: "div", attributes: { class: "lush-column" } },
+  shape: { element: "div", attributes: { class: "rich-column" } },
 })
 
 export const Columns = Plot.define("Columns", {
@@ -76,7 +76,7 @@ export const Columns = Plot.define("Columns", {
   blockContent: ColumnGroup,
   orientation: "row",
   defining: true,
-  shape: { element: "div", attributes: { class: "lush-columns" } },
+  shape: { element: "div", attributes: { class: "rich-columns" } },
 })
 
 const amString = value => {
@@ -92,14 +92,14 @@ const numberMark = {
 const isImageBlock = block => block.node === Image
 const withoutImage = list => list.filter(entry => !isImageBlock(entry))
 
-// The schema adapter for the "lush" tool: the basic Automerge rich-text
+// The schema adapter for the "rich" tool: the basic Automerge rich-text
 // mapping, with our image node in place of the built-in one, plus the embed
 // leaf and the column blocks.
-export const lushAdapter = new SchemaAdapter({
+export const richAdapter = new SchemaAdapter({
   ...basicSchemaSpec,
   elements: [
     ...basicSchemaSpec.elements.filter(element => element !== Image),
-    LushImage,
+    RichImage,
     Columns,
     Column,
     Table,
@@ -115,7 +115,7 @@ export const lushAdapter = new SchemaAdapter({
   blocks: [
     ...withoutImage(basicSchemaSpec.blocks),
     {
-      node: LushImage,
+      node: RichImage,
       block: "image",
       isEmbed: true,
       attrs: {

@@ -9,7 +9,7 @@ for (const theme of ["light", "dark"]) {
     viewport: { width: 460, height: 300 },
     colorScheme: theme === "light" ? "dark" : "light",
   })
-  await page.goto("http://localhost:5173/")
+  await page.goto(process.env.RICH_DEV_URL ?? "http://localhost:5173/")
   await page.waitForSelector("wg-content")
   // The host sets the theme; the opposite OS scheme above is the case that
   // used to win and leave the ink unreadable.
@@ -22,9 +22,9 @@ for (const theme of ["light", "dark"]) {
     await page.keyboard.press("End")
     await page.keyboard.up("Shift")
     await page.waitForTimeout(150)
-    await page.click(".lush-highlight-dot")
+    await page.click(".rich-highlight-dot")
     await page.waitForTimeout(100)
-    await page.click(`.lush-highlight-swatch[data-highlight="${name}"]`)
+    await page.click(`.rich-highlight-swatch[data-highlight="${name}"]`)
     await page.waitForTimeout(150)
     await page.keyboard.press("End")
     await page.keyboard.press("Enter")

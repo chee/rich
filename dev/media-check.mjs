@@ -2,7 +2,7 @@
 // window chrome an embedded document gets. Run `pnpm dev:serve` first.
 import { chromium } from "playwright"
 
-const url = process.env.LUSH_DEV_URL ?? "http://localhost:5173/"
+const url = process.env.RICH_DEV_URL ?? "http://localhost:5173/"
 const browser = await chromium.launch({ channel: "chromium" })
 const page = await browser.newPage({ viewport: { width: 1100, height: 800 } })
 const problems = []
@@ -19,7 +19,7 @@ await page.waitForSelector("wg-content")
 // A file document per kind, embedded in the note. The bytes don't have to
 // decode: the question is which element the embed builds.
 const kinds = await page.evaluate(async () => {
-  const { editor, Embed } = window.lushDev
+  const { editor, Embed } = window.richDev
   const files = [
     { mimeType: "image/png", extension: "png", name: "picture" },
     { mimeType: "video/mp4", extension: "mp4", name: "movie" },
@@ -47,11 +47,11 @@ const kinds = await page.evaluate(async () => {
 
 await page.waitForTimeout(500)
 
-const embeds = await page.$$eval("lush-embed", nodes =>
+const embeds = await page.$$eval("rich-embed", nodes =>
   nodes.map(node => ({
-    media: node.shadowRoot.querySelector(".lush-embed-window").className,
-    body: node.shadowRoot.querySelector(".lush-embed-body")?.firstElementChild?.tagName,
-    bar: getComputedStyle(node.shadowRoot.querySelector(".lush-embed-bar")).display,
+    media: node.shadowRoot.querySelector(".rich-embed-window").className,
+    body: node.shadowRoot.querySelector(".rich-embed-body")?.firstElementChild?.tagName,
+    bar: getComputedStyle(node.shadowRoot.querySelector(".rich-embed-bar")).display,
   })),
 )
 
