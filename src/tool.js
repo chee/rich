@@ -15,9 +15,12 @@ import {
   link,
 } from "wordgard/schema"
 import { GardState } from "wordgard/state"
-import { automergeSyncPlugin } from "@automerge/wordgard"
+import { tables } from "wordgard/table"
+import { automergeSyncPlugin } from "./wordgard/index.js"
 import { docFromSpansCompat } from "./compat.js"
+import { defineEmbedElement } from "./embed-element.js"
 import { richAdapter, Column, Columns, Embed, RichImage } from "./adapter.js"
+import { FillColor, InkColor } from "./colors.js"
 import { featureExtensions, richPlugins } from "./features.js"
 import { docSelector, expandSelector } from "./plugin-catalog.js"
 import "./rich.css"
@@ -25,6 +28,7 @@ import "./rich.css"
 // The render contract: (handle, element) => cleanup.
 export default function RichTool(handle, element) {
   element.classList.add("rich-tool")
+  defineEmbedElement()
 
   const page = document.createElement("div")
   page.className = "rich-page"
@@ -35,13 +39,14 @@ export default function RichTool(handle, element) {
   // enabled full-tier ids, core-tier is always on, and the `/plugins` panel
   // edits that array.
   const selector = () => expandSelector(docSelector(handle.doc()))
-  const { commands, features } = richPlugins(selector, () => applyFeatures())
+  const { blocks, commands, features } = richPlugins(selector, () => applyFeatures())
   const featureConfig = GardState.Compartment.define()
 
   const context = {
     handle,
     element,
     adapter: richAdapter,
+    blockTypes: () => blocks.get(),
     slashCommands: () => commands.get(),
   }
 
@@ -65,6 +70,7 @@ export default function RichTool(handle, element) {
     const next = JSON.stringify(handle.doc()?.plugins ?? null)
     if (next === enabled) return
     enabled = next
+    blocks.refresh()
     commands.refresh()
     features.refresh()
   }
@@ -75,7 +81,7 @@ export default function RichTool(handle, element) {
     doc: docFromSpansCompat(richAdapter, am.spans(handle.doc(), ["content"])),
     config: [
       // Node types the adapter maps but no editing bundle registers.
-      GardState.schemaElement.of([Embed, RichImage, Columns, Column]),
+      GardState.schemaElement.of([Embed, RichImage, Columns, Column, InkColor, FillColor]),
 
       // Editing behaviour for exactly the node/mark types the adapter maps,
       // so the user can only create content that round-trips to Automerge.
@@ -90,6 +96,10 @@ export default function RichTool(handle, element) {
       emphasis(),
       code(),
       link(),
+
+      // Tables: cells hold inline content, which is what the block encoding
+      // can represent.
+      tables({ cellContent: "inline" }),
 
       history(),
 
@@ -107,6 +117,7 @@ export default function RichTool(handle, element) {
 
   return () => {
     handle.off("change", onDocChange)
+    blocks.dispose()
     commands.dispose()
     features.dispose()
     editor.dom.remove()

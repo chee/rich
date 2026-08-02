@@ -5,13 +5,19 @@
 import { Wordgard } from "wordgard/editor"
 import { Slice } from "wordgard/doc"
 import { Paragraph } from "wordgard/types"
+import { Column, Columns } from "./adapter.js"
 import { el, svg } from "./dom.js"
+import { openBlockMenu } from "./block-menu.js"
 import { openSlashAt } from "./slash.js"
 
 const DRAG_TYPE = "text/x-rich-block"
 // How far left of a block the pointer still counts as "on" it, so the gutter
 // is reachable without the hover being lost in the gap.
 const GUTTER_REACH = 60
+// Dropping within this much of a block's left or right edge puts the two
+// side by side instead of stacking them.
+const SIDE_ZONE = 0.25
+const MAX_SIDE_ZONE = 140
 
 // The containers whose children get handles: the document itself and any
 // column.
@@ -68,8 +74,9 @@ function containerRange(wg, container) {
 }
 
 class BlockGutter {
-  constructor(wg) {
+  constructor(wg, context) {
     this.wg = wg
+    this.context = context
     // The last pointer position over content. The block is looked up from it
     // on demand rather than remembered, because an edit can replace the
     // element the gutter was pointing at.
@@ -90,8 +97,9 @@ class BlockGutter {
       class: "rich-gutter-button rich-gutter-grip",
       role: "button",
       tabindex: "0",
-      title: "Drag to move",
+      title: "Click for block options, drag to move",
       draggable: "true",
+      onclick: () => this.openMenu(),
     })
     this.grip.append(
       svg(
@@ -163,6 +171,21 @@ class BlockGutter {
     this.gutter.classList.add("visible")
   }
 
+  // Clicking the grip (as opposed to dragging it) opens the block's menu.
+  openMenu() {
+    const found = this.hovered()
+    const range = found && blockRange(this.wg, found.element)
+    if (!range) return
+    openBlockMenu({
+      wg: this.wg,
+      parent: this.wg.dom,
+      anchor: this.gutter.getBoundingClientRect(),
+      blockTypes: this.context.blockTypes(),
+      range,
+      context: this.context,
+    })
+  }
+
   insertBelow() {
     const found = this.hovered()
     const range = found && blockRange(this.wg, found.element)
@@ -225,6 +248,22 @@ class BlockGutter {
         }
       }
     }
+    // Near a block's left or right edge: offer to put the two side by side.
+    for (const child of children) {
+      const rect = child.getBoundingClientRect()
+      if (event.clientY < rect.top || event.clientY > rect.bottom) continue
+      const zone = Math.min(rect.width * SIDE_ZONE, MAX_SIDE_ZONE)
+      const side =
+        event.clientX < rect.left + zone
+          ? "left"
+          : event.clientX > rect.right - zone
+            ? "right"
+            : null
+      if (!side) continue
+      const at = blockRange(this.wg, child)
+      if (!at) continue
+      return { pos: at.from, beside: at, container, side, rect, edge: side }
+    }
     for (const child of children) {
       const rect = child.getBoundingClientRect()
       if (event.clientY < rect.top + rect.height / 2) {
@@ -247,9 +286,19 @@ class BlockGutter {
     const target = this.dropTarget(event)
     if (!target) return
     const host = this.wg.dom.getBoundingClientRect()
-    this.indicator.style.top = `${(target.edge === "top" ? target.rect.top : target.rect.bottom) - host.top}px`
-    this.indicator.style.left = `${target.rect.left - host.left}px`
-    this.indicator.style.width = `${target.rect.width}px`
+    const beside = Boolean(target.beside)
+    this.indicator.classList.toggle("vertical", beside)
+    if (beside) {
+      this.indicator.style.top = `${target.rect.top - host.top}px`
+      this.indicator.style.left = `${(target.side === "left" ? target.rect.left : target.rect.right) - host.left}px`
+      this.indicator.style.width = ""
+      this.indicator.style.height = `${target.rect.height}px`
+    } else {
+      this.indicator.style.top = `${(target.edge === "top" ? target.rect.top : target.rect.bottom) - host.top}px`
+      this.indicator.style.left = `${target.rect.left - host.left}px`
+      this.indicator.style.width = `${target.rect.width}px`
+      this.indicator.style.height = ""
+    }
     this.indicator.classList.add("visible")
   }
 
@@ -262,6 +311,7 @@ class BlockGutter {
     // Dropping a block inside itself, or where it already is, is a no-op.
     if (!target) return
     if (target.pos >= source.from && target.pos <= source.to) return
+    if (target.beside) return this.dropBeside(source, target)
     this.wg.dispatch({
       changes: [
         {
@@ -278,8 +328,42 @@ class BlockGutter {
       userEvent: "move.block",
     })
   }
+  // Side-by-side: either a new column next to the target's own column, or a
+  // fresh two-column row made from the target and the dragged block.
+  dropBeside(source, target) {
+    const column = Column.create([source.node])
+    const inColumn = target.container.classList?.contains("rich-column")
+    const replaced = inColumn ? blockRange(this.wg, target.container) : target.beside
+    if (!replaced) return
+
+    const insert = inColumn
+      ? { from: target.side === "left" ? replaced.from : replaced.to, insert: [column] }
+      : {
+          from: replaced.from,
+          to: replaced.to,
+          insert: [
+            Columns.create(
+              target.side === "left"
+                ? [column, Column.create([replaced.node])]
+                : [Column.create([replaced.node]), column],
+            ),
+          ],
+        }
+
+    this.wg.dispatch({
+      changes: [
+        {
+          from: source.from,
+          to: source.to,
+          insert: source.emptied ? [Paragraph.create([])] : undefined,
+        },
+        insert,
+      ],
+      userEvent: "move.block",
+    })
+  }
 }
 
-export function blockGutter() {
-  return Wordgard.Plugin.fromClass(BlockGutter).extension
+export function blockGutter(context) {
+  return Wordgard.Plugin.define(wg => new BlockGutter(wg, context)).extension
 }

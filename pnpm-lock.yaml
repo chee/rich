@@ -14,9 +14,6 @@ importers:
       '@automerge/automerge-repo':
         specifier: ^2.1.0
         version: 2.5.0
-      '@automerge/wordgard':
-        specifier: link:../automerge-wordgard
-        version: link:../automerge-wordgard
       wordgard:
         specifier: ^0.1.0
         version: 0.1.0

@@ -1,5 +1,5 @@
 import * as am from "@automerge/automerge"
-import { spansFromDoc } from "@automerge/wordgard"
+import { spansFromDoc } from "./wordgard/index.js"
 import { Paragraph } from "wordgard/types"
 import { richAdapter } from "./adapter.js"
 import { builtinFullIds } from "./plugin-catalog.js"

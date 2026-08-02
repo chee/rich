@@ -16,10 +16,12 @@ export default defineConfig({
         "./dev/filesystem-stub.js",
         import.meta.url,
       ).pathname,
+      "@inkandswitch/patchwork-elements": new URL("./dev/elements-stub.js", import.meta.url)
+        .pathname,
     },
   },
   optimizeDeps: {
-    exclude: ["@automerge/automerge", "@automerge/wordgard"],
+    exclude: ["@automerge/automerge"],
     include: ["@automerge/automerge-repo", "eventemitter3"],
   },
 })

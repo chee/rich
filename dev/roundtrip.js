@@ -1,7 +1,7 @@
 // Dev-only: re-materialise the document from the Automerge spans and compare
 // it to what the editor has, so the tests can prove blocks round-trip.
 import * as am from "@automerge/automerge"
-import { docFromSpans } from "@automerge/wordgard"
+import { docFromSpans } from "../src/wordgard/index.js"
 import { richAdapter } from "../src/adapter.js"
 
 export function roundTrip(handle, editor) {

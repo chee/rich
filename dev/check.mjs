@@ -31,6 +31,13 @@ function check(name, condition, detail = "") {
 }
 
 const type = (text, delay = 40) => page.keyboard.type(text, { delay })
+// Click into a block's text. The block handle sits over the left edge, so aim
+// well inside, and park the pointer away from the text afterwards.
+async function clickInto(selector) {
+  await page.locator(selector).click({ position: { x: 120, y: 6 } })
+  await page.mouse.move(1000, 700)
+  await page.waitForTimeout(100)
+}
 const blocks = () =>
   page.$$eval("wg-content > *", nodes =>
     nodes.map(node => `${node.tagName.toLowerCase()}:${node.textContent}`),
@@ -48,6 +55,17 @@ async function slash(query, expected) {
   }
   await page.keyboard.press("Enter")
   await page.waitForTimeout(250)
+}
+
+// Later sections work on their own page: a note that has accumulated a dozen
+// edits makes for brittle geometry.
+async function freshPage() {
+  const fresh = await browser.newPage({ viewport: { width: 1100, height: 800 } })
+  fresh.on("pageerror", error => errors.push(String(error)))
+  await fresh.goto(url)
+  await fresh.waitForSelector("wg-content")
+  await fresh.click("wg-content")
+  return fresh
 }
 
 await page.goto(url)
@@ -70,6 +88,13 @@ await type("/")
 await page.waitForSelector(".rich-slash-item", { timeout: 2000 })
 const itemCount = await page.$$eval(".rich-slash-item", items => items.length)
 check("slash menu opens", itemCount > 8, `${itemCount} items`)
+const groups = await page.$$eval(".rich-slash-group", items => items.map(i => i.textContent))
+check("blocks and commands are distinguished", groups[0] === "Turn into" && groups.length > 1, groups.join(", "))
+check(
+  "block types are their own kind",
+  (await page.$$(".rich-slash-item.block")).length >= 8 &&
+    (await page.$$(".rich-slash-item.command")).length >= 5,
+)
 await shot("01-slash-menu")
 
 await type("bul")
@@ -135,6 +160,24 @@ async function dragBlockTo(targetSelector, atBottom = false) {
   return indicator
 }
 
+// Drag the grip to a block's left or right edge instead of between blocks.
+async function dragBlockToSide(targetSelector, side) {
+  const grip = await page.locator(".rich-gutter-grip").boundingBox()
+  const target = await page.locator(targetSelector).boundingBox()
+  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(
+    side === "right" ? target.x + target.width - 12 : target.x + 12,
+    target.y + target.height / 2,
+    { steps: 14 },
+  )
+  await page.waitForTimeout(150)
+  const indicator = await page.isVisible(".rich-drop-indicator.vertical.visible")
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+  return indicator
+}
+
 const beforeDrag = await blocks()
 const sawIndicator = await dragBlockTo("wg-content > *:last-child", true)
 const afterDrag = await blocks()
@@ -148,6 +191,50 @@ await page.locator(".rich-gutter-button").first().click()
 await page.waitForTimeout(250)
 check("plus opens slash menu", (await page.$$(".rich-slash-item")).length > 0)
 await page.keyboard.press("Escape")
+
+// The block handle's menu: convert, colour, duplicate, delete.
+{
+  const menu = await freshPage()
+  await menu.keyboard.type("Title", { delay: 40 })
+  await menu.keyboard.press("Enter")
+  await menu.keyboard.type("colour me", { delay: 40 })
+  await menu.waitForTimeout(200)
+  await menu.locator("wg-content > *").nth(1).hover()
+  await menu.waitForTimeout(200)
+  await menu.locator(".rich-gutter-grip").click()
+  await menu.waitForTimeout(250)
+  check("block menu opens", await menu.isVisible(".rich-block-menu"))
+  const names = await menu.$$eval(".rich-block-menu-item .rich-slash-name", items =>
+    items.map(item => item.textContent),
+  )
+  check(
+    "block menu offers block types and actions",
+    names.includes("Heading 2") && names.includes("Duplicate") && names.includes("Delete"),
+    names.join(", "),
+  )
+  await menu.screenshot({
+    path: new URL("./shots/02b-block-menu.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+
+  await menu.locator('.rich-swatch[data-role="ink"][data-color="pink"]').click()
+  await menu.waitForTimeout(200)
+  await menu.locator('.rich-swatch[data-role="fill"][data-color="yellow"]').click()
+  await menu.waitForTimeout(250)
+  check("colours apply", (await menu.$$("wg-content .rich-ink-pink .rich-fill-yellow")).length > 0)
+
+  await menu.locator(".rich-block-menu-item", { hasText: "Heading 2" }).click()
+  await menu.waitForTimeout(300)
+  check("block menu converts the block", (await menu.$$("wg-content h2")).length > 0)
+
+  const coloured = await menu.evaluate(() => window.richDev.roundTrip())
+  check("colours round trip", coloured.live === coloured.rebuilt)
+  const marks = await menu.evaluate(() =>
+    JSON.stringify(JSON.parse(window.richDev.roundTrip().spans).find(s => s.marks)?.marks ?? null),
+  )
+  check("colours are stored by name", marks?.includes("pink"), String(marks))
+  await menu.close()
+}
 
 // Columns
 await page.keyboard.press("Backspace")
@@ -175,6 +262,64 @@ check(
   moved.slice(moved.indexOf('"Columns"'), moved.indexOf('"Columns"') + 220),
 )
 
+// Tables.
+{
+  const table = await freshPage()
+  await table.keyboard.type("Notes", { delay: 40 })
+  await table.keyboard.press("Enter")
+  await table.keyboard.type("/table", { delay: 40 })
+  await table.waitForSelector(".rich-slash-item")
+  await table.keyboard.press("Enter")
+  await table.waitForTimeout(300)
+  await table.keyboard.type("cell", { delay: 40 })
+  await table.waitForTimeout(200)
+  check(
+    "table has all its cells",
+    (await table.$$("wg-content table th, wg-content table td")).length === 9,
+  )
+  const trip = await table.evaluate(() => window.richDev.roundTrip())
+  check("tables round trip", trip.live === trip.rebuilt, trip.rebuilt.slice(0, 160))
+  await table.screenshot({
+    path: new URL("./shots/03b-table.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+  await table.close()
+}
+
+// Dropping a block against another block's edge puts them side by side.
+{
+  const side = await freshPage()
+  await side.keyboard.type("Title", { delay: 40 })
+  await side.keyboard.press("Enter")
+  await side.keyboard.type("left one", { delay: 40 })
+  await side.keyboard.press("Enter")
+  await side.keyboard.type("beside me", { delay: 40 })
+  await side.waitForTimeout(250)
+
+  await side.locator("wg-content > *").nth(2).hover()
+  await side.waitForTimeout(200)
+  const grip = await side.locator(".rich-gutter-grip").boundingBox()
+  const target = await side.locator("wg-content > *").nth(1).boundingBox()
+  await side.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
+  await side.mouse.down()
+  await side.mouse.move(target.x + target.width - 12, target.y + target.height / 2, { steps: 14 })
+  await side.waitForTimeout(150)
+  check("side drop shows a vertical indicator", await side.isVisible(".rich-drop-indicator.vertical.visible"))
+  await side.mouse.up()
+  await side.waitForTimeout(300)
+  const columns = await side.$$eval(".rich-columns .rich-column", items =>
+    items.map(item => item.textContent),
+  )
+  check("side drop makes columns", columns.length === 2, columns.join(" | "))
+  const trip = await side.evaluate(() => window.richDev.roundTrip())
+  check("side columns round trip", trip.live === trip.rebuilt)
+  await side.screenshot({
+    path: new URL("./shots/03c-side-columns.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+  await side.close()
+}
+
 // Everything the editor holds must survive the automerge round trip.
 const trip = await page.evaluate(() => window.richDev.roundTrip())
 let diff = ""
@@ -186,7 +331,7 @@ if (trip.live !== trip.rebuilt) {
 check("automerge round trip", trip.live === trip.rebuilt, diff)
 
 // Pasting an image stores a file document and inserts an image block.
-await page.locator("wg-content > *").first().click()
+await clickInto("wg-content > *:first-child")
 await page.keyboard.press("End")
 await page.evaluate(async () => {
   const canvas = document.createElement("canvas")
@@ -227,6 +372,9 @@ check("image renders", (await page.$$("wg-content img")).length > 0)
 await shot("04-image")
 
 // /plugins panel drives doc.plugins, and turning a plugin off takes effect.
+await clickInto("wg-content > *:first-child")
+await page.keyboard.press("End")
+await page.keyboard.press("Enter")
 await slash("plugins")
 await page.waitForTimeout(250)
 check("plugins panel opens", await page.isVisible(".rich-plugins-panel"))
@@ -243,7 +391,7 @@ const pluginList = await page.evaluate(() => window.richDev.handle.doc().plugins
 check("toggle writes doc.plugins", !pluginList.includes("format-bar"), JSON.stringify(pluginList))
 await page.keyboard.press("Escape")
 await page.waitForTimeout(200)
-await page.locator("wg-content > *").first().click()
+await clickInto("wg-content > *:first-child")
 await page.keyboard.down("Shift")
 await page.keyboard.press("End")
 await page.keyboard.up("Shift")
@@ -251,6 +399,64 @@ await page.waitForTimeout(300)
 check("disabled feature is gone", (await page.$$(".rich-format-bar")).length === 0)
 
 check("no page errors", errors.length === 0, errors.slice(0, 3).join(" / "))
+
+// Embedded documents draw their own window chrome and render image files as
+// images.
+const refs = await browser.newPage({ viewport: { width: 1100, height: 800 } })
+await refs.goto(url)
+await refs.waitForSelector("wg-content")
+const dropped = await refs.evaluate(async () => {
+  const canvas = document.createElement("canvas")
+  canvas.width = canvas.height = 16
+  canvas.getContext("2d").fillRect(0, 0, 16, 16)
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"))
+  const file = await window.repo.create2({
+    "@patchwork": { type: "file" },
+    content: new Uint8Array(await blob.arrayBuffer()),
+    extension: "png",
+    mimeType: "image/png",
+    name: "square",
+  })
+  const note = await window.repo.create2({
+    "@patchwork": { type: "rich" },
+    title: "Another note",
+    content: "",
+  })
+  const content = document.querySelector("wg-content")
+  const rect = content.getBoundingClientRect()
+  const data = new DataTransfer()
+  data.setData(
+    "text/x-patchwork-dnd",
+    JSON.stringify({ source: "sideboard", items: [{ url: file.url }, { url: note.url }] }),
+  )
+  const point = { clientX: rect.left + 40, clientY: rect.top + 40 }
+  for (const kind of ["dragover", "drop"]) {
+    content.dispatchEvent(
+      new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: data, ...point }),
+    )
+  }
+  return true
+})
+await refs.waitForTimeout(1200)
+check("sidebar drop inserts embeds", (await refs.$$("rich-embed")).length === 2, String(dropped))
+const titles = await refs.evaluate(() =>
+  [...document.querySelectorAll("rich-embed")].map(
+    e => e.shadowRoot?.querySelector(".rich-embed-title")?.textContent,
+  ),
+)
+check("embeds show the document's name", titles.includes("Another note"), titles.join(", "))
+check(
+  "image documents render as images",
+  await refs.evaluate(
+    () =>
+      [...document.querySelectorAll("rich-embed")].filter(e => e.shadowRoot?.querySelector("img"))
+        .length === 1,
+  ),
+)
+await refs.screenshot({
+  path: new URL("./shots/07-embeds.png", import.meta.url).pathname,
+  caret: "initial",
+})
 
 // A real document written by the Swift richtext app: its pasted images are
 // inline `embed` blocks, which used to fail schema validation on load.

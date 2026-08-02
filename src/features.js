@@ -11,6 +11,7 @@ import { blockGutter } from "./blocks.js"
 import { formatBar } from "./format-bar.js"
 import { imageDropAndPaste } from "./images.js"
 import { slashCommands, slashMenu } from "./slash.js"
+import { blockTypes } from "./block-types.js"
 import { getDndPayload, hasDocumentDrag } from "./dnd.js"
 import { Embed } from "./adapter.js"
 import { loadedPlugins } from "./registry.js"
@@ -70,10 +71,8 @@ const typographyRules = [
 ]
 
 export const featurePlugins = [
-  feature("slash", "Slash commands", "core", context =>
-    slashMenu(context.slashCommands, context),
-  ),
-  feature("blocks", "Block handles", "core", () => blockGutter()),
+  feature("slash", "Slash menu", "core", context => slashMenu(context)),
+  feature("blocks", "Block handles", "core", context => blockGutter(context)),
   feature("images", "Image paste & drop", "core", () => imageDropAndPaste()),
   feature("embed", "Document embeds", "core", embedExtensions),
   feature("placeholder", "Placeholder", "core", () => placeholder("Start writing…")),
@@ -88,6 +87,7 @@ export const featurePlugins = [
 // `refresh()`.
 export function richPlugins(selector, onChange) {
   return {
+    blocks: loadedPlugins("rich:block", blockTypes, selector, onChange),
     commands: loadedPlugins("rich:slash", slashCommands, selector, onChange),
     features: loadedPlugins("rich:feature", featurePlugins, selector, onChange),
   }

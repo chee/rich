@@ -17,7 +17,10 @@ async function resolve(url) {
     const blob = new Blob([doc.content], { type: doc.mimeType })
     const objectUrl = URL.createObjectURL(blob)
     blobs.set(url, objectUrl)
-    for (const img of document.querySelectorAll('img[src=""]')) img.src = objectUrl
+    const roots = [document, ...[...document.querySelectorAll("*")].map(e => e.shadowRoot).filter(Boolean)]
+    for (const root of roots) {
+      for (const img of root.querySelectorAll('img[src=""]')) img.src = objectUrl
+    }
   } catch (error) {
     console.error("filesystem stub:", error)
   }

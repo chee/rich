@@ -121,7 +121,26 @@
 }
 
 .rich-tool .rich-page wg-content li {
-  margin: 0.15em 0;
+  margin: 0;
+}
+
+/* A list item holds block content, so each line is a paragraph inside the
+   <li>; without this the browser's paragraph margins push the bullets apart. */
+.rich-tool .rich-page wg-content li > p,
+.rich-tool .rich-page wg-content blockquote > p,
+.rich-tool .rich-page wg-content td > p,
+.rich-tool .rich-page wg-content th > p {
+  margin: 0;
+}
+
+.rich-tool .rich-page wg-content li > * + *,
+.rich-tool .rich-page wg-content blockquote > * + * {
+  margin-top: 0.4em;
+}
+
+.rich-tool .rich-page wg-content li > ul,
+.rich-tool .rich-page wg-content li > ol {
+  margin-top: 0;
 }
 
 .rich-tool .rich-page wg-content a {
@@ -444,4 +463,230 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--rich-muted);
+}
+
+.rich-drop-indicator.vertical {
+  width: 2px;
+  height: auto;
+  margin-left: -1px;
+}
+
+/* Embedded documents draw themselves — see embed-element.js, which renders
+   into a shadow root so the editor can't wipe its chrome. */
+
+/* Tables. */
+.rich-tool .rich-page wg-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+  font-size: 0.95em;
+}
+
+.rich-tool .rich-page wg-content th,
+.rich-tool .rich-page wg-content td {
+  border: 1px solid var(--rich-border);
+  padding: 0.35em 0.55em;
+  vertical-align: top;
+  min-width: 3rem;
+}
+
+.rich-tool .rich-page wg-content th {
+  background: var(--rich-sunk);
+  font-weight: 600;
+  text-align: start;
+}
+
+.rich-tool .rich-page wg-content .wg-selected-cell {
+  outline: 2px solid var(--rich-accent);
+  outline-offset: -2px;
+}
+
+/* The palette. Named colours, so the theme decides what pink is: the host's
+   own `--studio-color-ink-*` / `--studio-color-fill-*` tokens win when it has
+   them, otherwise these soft defaults, with a dark variant. */
+@layer package {
+  :root,
+  :host,
+  [theme] {
+    --rich-ink-pink: var(--studio-color-ink-pink, #c31f6d);
+    --rich-fill-pink: var(--studio-color-fill-pink, #ffdcea);
+    --rich-ink-red: var(--studio-color-ink-red, #c0342b);
+    --rich-fill-red: var(--studio-color-fill-red, #ffdcd8);
+    --rich-ink-orange: var(--studio-color-ink-orange, #a85a00);
+    --rich-fill-orange: var(--studio-color-fill-orange, #ffe6cd);
+    --rich-ink-yellow: var(--studio-color-ink-yellow, #8a6300);
+    --rich-fill-yellow: var(--studio-color-fill-yellow, #fff2c2);
+    --rich-ink-green: var(--studio-color-ink-green, #177a45);
+    --rich-fill-green: var(--studio-color-fill-green, #d7f6de);
+    --rich-ink-sea: var(--studio-color-ink-sea, #0d7a72);
+    --rich-fill-sea: var(--studio-color-fill-sea, #cdf4ef);
+    --rich-ink-sky: var(--studio-color-ink-sky, #0a63b0);
+    --rich-fill-sky: var(--studio-color-fill-sky, #daecff);
+    --rich-ink-purple: var(--studio-color-ink-purple, #6d40c4);
+    --rich-fill-purple: var(--studio-color-fill-purple, #eaddff);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root,
+    :host,
+    [theme] {
+      --rich-ink-pink: var(--studio-color-ink-pink, #ff9dc6);
+      --rich-fill-pink: var(--studio-color-fill-pink, #5a1b36);
+      --rich-ink-red: var(--studio-color-ink-red, #ff9f96);
+      --rich-fill-red: var(--studio-color-fill-red, #511d19);
+      --rich-ink-orange: var(--studio-color-ink-orange, #ffbe7d);
+      --rich-fill-orange: var(--studio-color-fill-orange, #4d2b06);
+      --rich-ink-yellow: var(--studio-color-ink-yellow, #f5d264);
+      --rich-fill-yellow: var(--studio-color-fill-yellow, #413007);
+      --rich-ink-green: var(--studio-color-ink-green, #8fe3ac);
+      --rich-fill-green: var(--studio-color-fill-green, #123a24);
+      --rich-ink-sea: var(--studio-color-ink-sea, #7fded4);
+      --rich-fill-sea: var(--studio-color-fill-sea, #0d3a37);
+      --rich-ink-sky: var(--studio-color-ink-sky, #8ec8ff);
+      --rich-fill-sky: var(--studio-color-fill-sky, #0f3054);
+      --rich-ink-purple: var(--studio-color-ink-purple, #c3a5ff);
+      --rich-fill-purple: var(--studio-color-fill-purple, #2f1f52);
+    }
+  }
+}
+
+.rich-tool .rich-ink-default { color: inherit; }
+.rich-tool .rich-fill-default { background: none; }
+.rich-tool .rich-ink-pink { color: var(--rich-ink-pink); }
+.rich-tool .rich-ink-red { color: var(--rich-ink-red); }
+.rich-tool .rich-ink-orange { color: var(--rich-ink-orange); }
+.rich-tool .rich-ink-yellow { color: var(--rich-ink-yellow); }
+.rich-tool .rich-ink-green { color: var(--rich-ink-green); }
+.rich-tool .rich-ink-sea { color: var(--rich-ink-sea); }
+.rich-tool .rich-ink-sky { color: var(--rich-ink-sky); }
+.rich-tool .rich-ink-purple { color: var(--rich-ink-purple); }
+
+.rich-tool [class^="rich-fill-"]:not(.rich-fill-default) {
+  border-radius: 3px;
+  padding: 0.05em 0.15em;
+  margin: 0 -0.05em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.rich-tool .rich-fill-pink { background: var(--rich-fill-pink); }
+.rich-tool .rich-fill-red { background: var(--rich-fill-red); }
+.rich-tool .rich-fill-orange { background: var(--rich-fill-orange); }
+.rich-tool .rich-fill-yellow { background: var(--rich-fill-yellow); }
+.rich-tool .rich-fill-green { background: var(--rich-fill-green); }
+.rich-tool .rich-fill-sea { background: var(--rich-fill-sea); }
+.rich-tool .rich-fill-sky { background: var(--rich-fill-sky); }
+.rich-tool .rich-fill-purple { background: var(--rich-fill-purple); }
+
+/* Swatches in the block menu. */
+.rich-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.rich-swatch {
+  all: unset;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--rich-border);
+  cursor: pointer;
+}
+
+.rich-swatch:hover {
+  outline: 2px solid var(--rich-accent);
+  outline-offset: 1px;
+}
+
+.rich-swatch-default {
+  background:
+    linear-gradient(to top right, transparent 46%, var(--rich-muted) 46%, var(--rich-muted) 54%, transparent 54%),
+    var(--rich-fill);
+}
+.rich-swatch[data-role="fill"].rich-swatch-pink { background: var(--rich-fill-pink); }
+.rich-swatch[data-role="ink"].rich-swatch-pink { background: var(--rich-ink-pink); }
+.rich-swatch[data-role="fill"].rich-swatch-red { background: var(--rich-fill-red); }
+.rich-swatch[data-role="ink"].rich-swatch-red { background: var(--rich-ink-red); }
+.rich-swatch[data-role="fill"].rich-swatch-orange { background: var(--rich-fill-orange); }
+.rich-swatch[data-role="ink"].rich-swatch-orange { background: var(--rich-ink-orange); }
+.rich-swatch[data-role="fill"].rich-swatch-yellow { background: var(--rich-fill-yellow); }
+.rich-swatch[data-role="ink"].rich-swatch-yellow { background: var(--rich-ink-yellow); }
+.rich-swatch[data-role="fill"].rich-swatch-green { background: var(--rich-fill-green); }
+.rich-swatch[data-role="ink"].rich-swatch-green { background: var(--rich-ink-green); }
+.rich-swatch[data-role="fill"].rich-swatch-sea { background: var(--rich-fill-sea); }
+.rich-swatch[data-role="ink"].rich-swatch-sea { background: var(--rich-ink-sea); }
+.rich-swatch[data-role="fill"].rich-swatch-sky { background: var(--rich-fill-sky); }
+.rich-swatch[data-role="ink"].rich-swatch-sky { background: var(--rich-ink-sky); }
+.rich-swatch[data-role="fill"].rich-swatch-purple { background: var(--rich-fill-purple); }
+.rich-swatch[data-role="ink"].rich-swatch-purple { background: var(--rich-ink-purple); }
+
+/* The block handle's menu. */
+.rich-block-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 13rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--rich-border);
+  border-radius: 10px;
+  background: var(--rich-panel);
+  box-shadow: var(--rich-shadow);
+  font-family: var(--rich-family);
+  font-size: 0.875rem;
+  color: var(--rich-line);
+}
+
+.rich-block-menu-group {
+  padding: 6px 8px 2px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rich-muted);
+}
+
+.rich-block-menu-item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.rich-block-menu-item:hover {
+  background: var(--rich-sunk);
+}
+
+.rich-block-menu-item.active {
+  background: color-mix(in oklch, var(--rich-accent) 25%, var(--rich-panel));
+}
+
+.rich-block-menu-item.danger:hover {
+  background: var(--rich-fill-red);
+  color: var(--rich-ink-red);
+}
+
+.rich-block-menu-colors {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+}
+
+.rich-block-menu-label {
+  flex-shrink: 0;
+  width: 4.5rem;
+  font-size: 0.75rem;
+  color: var(--rich-muted);
+}
+
+/* Blocks and commands read differently in the slash menu. */
+.rich-slash-kind {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  color: var(--rich-faint);
 }

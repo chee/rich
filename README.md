@@ -14,17 +14,27 @@ model (e.g. `@automerge/prosemirror`).
 
 - **No toolbar.** A clean page: centred column, the first block styled as the
   note's title, a placeholder in an empty note.
-- **Slash commands.** `/` at the start of a block (or after a space) opens a
-  filterable menu: text, headings, lists, quote, code block, columns, image,
-  `/plugins`. Arrow keys move, Enter/Tab run, Escape dismisses.
+- **Slash menu.** `/` at the start of a block (or after a space). It shows two
+  kinds of thing, kept apart: **block types** to turn this block into, and
+  **commands** that insert or do something. Arrow keys move, Enter/Tab run,
+  Escape dismisses.
 - **Block handles.** Hovering a block shows a gutter: `+` inserts a block below
-  and opens the slash menu, the grip drags the block to reorder, with a drop
-  indicator. Blocks inside a column get handles too, and can be dragged between
-  columns. The hover band extends left of the text so the controls stay
-  grabbable.
-- **Columns.** `/columns` puts blocks side by side, Notion-style. `Columns` and
-  `Column` are real schema nodes mapping to `columns`/`column` Automerge
-  blocks, so a layout round-trips through the document.
+  and opens the slash menu; the grip **drags** the block to reorder and
+  **clicks** to open its menu — turn into another block type, colour it,
+  duplicate, delete. Blocks inside a column get handles too. The hover band
+  extends left of the text so the controls stay grabbable.
+- **Columns.** `/columns`, or drag a block against another block's left or
+  right edge and it offers to put them side by side (a vertical drop
+  indicator); against a block already in a column, it adds a column to that
+  row. `Columns`/`Column` are real schema nodes mapping to `columns`/`column`
+  Automerge blocks, so a layout round-trips.
+- **Tables.** `/table` — wordgard's table support, mapped to
+  `table`/`table-row`/`table-cell` blocks.
+- **Colour.** Text and background colour from the block menu: pink, red,
+  orange, yellow, green, sea, sky, purple, or default. The document stores the
+  *name*, so the theme decides what pink is — the host's
+  `--studio-color-ink-*` / `--studio-color-fill-*` tokens when it has them,
+  otherwise a soft built-in palette with a dark variant.
 - **Images are file documents.** Pasting, dropping or picking an image creates a
   Patchwork `file` doc (a `UnixFileEntry`: `content`/`extension`/`mimeType`/
   `name`) and stores its AutomergeUrl in the image block; only the rendered
@@ -69,13 +79,19 @@ and the editor reconfigures live (the feature extensions live in a
 `GardState.Compartment`). A doc with no `plugins` array at all is a legacy doc
 and gets everything.
 
-Two plugin types:
+Three plugin types:
 
 ```js
-// rich:slash — one entry in the slash menu
+// rich:block — a block type: appears under "Turn into" in the slash menu and
+// in the block handle's menu
+{type: "rich:block", id: "callout", name: "Callout", icon: "<path d='…'/>",
+ keywords: ["aside"], tier: "full",
+ async load() { return {active(state) {…}, apply(wg) {…}} }}
+
+// rich:slash — a command: inserts or does something
 {type: "rich:slash", id: "signature", name: "Signature", group: "Mine",
  keywords: ["sign"], tier: "full", icon: "<path d='…'/>",
- async load() { return {run(wg) { /* dispatch on the editor */ }} }}
+ async load() { return {run(wg, context) { /* dispatch on the editor */ }} }}
 
 // rich:feature — Wordgard extensions
 {type: "rich:feature", id: "spellcheck", name: "Spellcheck", tier: "full",
@@ -101,9 +117,16 @@ carry their behaviour inline. `context` carries
   field with an empty paragraph so every peer starts from the same structure.
 - `src/tool.js` — the render function: schema + editing bundles + history +
   `automergeSyncPlugin`, then whatever `doc.plugins` resolves to.
-- `src/features.js`, `src/slash.js`, `src/blocks.js`, `src/format-bar.js`,
-  `src/images.js` — the built-in plugins.
+- `src/features.js`, `src/slash.js`, `src/block-types.js`, `src/blocks.js`,
+  `src/block-menu.js`, `src/format-bar.js`, `src/images.js` — the built-in
+  plugins and the menus.
+- `src/colors.js` — the named-colour marks; `src/icons.js` — menu glyphs.
+- `src/embed-element.js` — `<rich-embed>`, the window an embedded document
+  draws for itself (shadow DOM, so the editor can't wipe its chrome). Image
+  file documents render as an `<img>`, everything else mounts a
+  `<patchwork-view>`; the look follows `space`'s canvas windows.
 - `src/files.js` — file documents in, service-worker URLs out.
+- `src/wordgard/` — the Automerge bindings, vendored.
 - `src/registry.js`, `src/plugin-catalog.js`, `src/plugins-panel.js` — the
   plugin machinery and the `/plugins` UI.
 
@@ -139,6 +162,13 @@ channel because the old headless shell doesn't run native HTML5 drag-and-drop
 (the block handles need it), screenshots must pass `caret: "initial"`
 (playwright's caret-hiding style injection makes Wordgard's DOM observer
 crash), and typing needs a `delay` or the keystrokes outrun the editor.
+
+One binding detail: `src/wordgard/traversal.ts` marks **every** mapped block
+container, and treats a container's first textblock as implicit only when it is
+that container's *only* child. Without it, a table row of empty cells, a list
+item holding a column layout, or a blank first line in a column are lost on the
+way back — the implicit child is only materialised by content that follows the
+container's marker.
 
 A browser detail, since it cost an afternoon: **a `<button draggable="true">`
 never starts a native drag** — browsers don't drag form controls. The grip is a

@@ -6,9 +6,9 @@ export default defineConfig({
   base: "./",
   plugins: [cssInjectedByJsPlugin()],
   resolve: {
-    // The (symlinked) @automerge/wordgard lib and the tool must share ONE
-    // copy of wordgard, or node/mark type identity breaks between the
-    // adapter's schema and the editor's schema.
+    // The src/wordgard bindings and the tool must share ONE copy of
+    // wordgard, or node/mark type identity breaks between the adapter's
+    // schema and the editor's schema.
     dedupe: ["wordgard"],
   },
   build: {
@@ -24,7 +24,7 @@ export default defineConfig({
       treeshake: { annotations: false, moduleSideEffects: true },
       // @automerge/automerge, the patchwork packages, codemirror and solid
       // are provided by the host importmap. Everything else (wordgard,
-      // @automerge/wordgard, style-mod, crelt, …) is bundled.
+      // style-mod, crelt, …) is bundled.
       external,
       input: "./src/index.js",
       output: {

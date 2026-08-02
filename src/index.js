@@ -1,5 +1,5 @@
 // "rich" — a collaborative rich text editor for Patchwork, built on the
-// Wordgard editor and the @automerge/wordgard bindings. The entry module
+// Wordgard editor and the Automerge bindings in src/wordgard. The entry module
 // only carries plugin metadata; the datatype and the tool are lazily
 // imported so the registry stays cheap to read.
 

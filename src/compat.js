@@ -7,7 +7,7 @@
 // tool blank on a document that is otherwise perfectly readable — so try the
 // spans as they are, then repaired, then as plain text. A note never fails to
 // open.
-import { docFromSpans } from "@automerge/wordgard"
+import { docFromSpans } from "./wordgard/index.js"
 import { Leaf } from "wordgard/doc"
 import { Paragraph } from "wordgard/types"
 

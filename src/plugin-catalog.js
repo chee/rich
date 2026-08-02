@@ -8,11 +8,13 @@
 import { mergePlugins } from "./registry.js"
 import { featurePlugins } from "./features.js"
 import { slashCommands } from "./slash.js"
+import { blockTypes } from "./block-types.js"
 
 // Lazy, because features and slash commands import each other: reading them at
 // module-eval time would depend on load order.
 export const pluginTypes = () => [
   { type: "rich:feature", builtins: featurePlugins },
+  { type: "rich:block", builtins: blockTypes },
   { type: "rich:slash", builtins: slashCommands },
 ]
 

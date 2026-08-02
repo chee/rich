@@ -1,13 +1,23 @@
 import * as am from "@automerge/automerge"
 import { Leaf, Mark, Node, Plot } from "wordgard/doc"
-import { Image, ImageAlt } from "wordgard/types"
-import { SchemaAdapter, basicSchemaSpec } from "@automerge/wordgard"
+import {
+  Cell,
+  ColSpan,
+  HeaderCell,
+  Image,
+  ImageAlt,
+  RowSpan,
+  Table,
+  TableRow,
+} from "wordgard/types"
+import { SchemaAdapter, basicSchemaSpec } from "./wordgard/index.js"
 import { srcForImage } from "./files.js"
+import { FillColor, InkColor, colorParsers } from "./colors.js"
 
 // An embedded Patchwork document. Its parameter is the document's
-// AutomergeUrl; its shape renders `<patchwork-view doc-url="…">`, the host
-// custom element that mounts that document inline — so no manual node view is
-// needed: Wordgard renders the atom and the element mounts itself.
+// AutomergeUrl; its shape renders `<rich-embed doc-url="…">` (see
+// embed-element.js), which draws the window chrome and mounts the document
+// itself — so no manual node view is needed.
 //
 // It is an INLINE leaf, written with `isEmbed: true`, because that is how the
 // Automerge rich-text schema spells an embed and how other editors on this
@@ -19,7 +29,7 @@ export const Embed = Leaf.Type.define("Embed", {
   validate: "string",
   selectable: true,
   shape: {
-    element: "patchwork-view",
+    element: "rich-embed",
     attributes: url => ({ "doc-url": url }),
   },
 })
@@ -66,6 +76,11 @@ const amString = value => {
   return am.isImmutableString(value) ? value.val : String(value)
 }
 
+const numberMark = {
+  fromAutomerge: value => (typeof value === "number" ? value : Number(value) || 1),
+  fromWordgard: value => value,
+}
+
 const isImageBlock = block => block.node === Image
 const withoutImage = list => list.filter(entry => !isImageBlock(entry))
 
@@ -79,6 +94,14 @@ export const richAdapter = new SchemaAdapter({
     RichImage,
     Columns,
     Column,
+    Table,
+    TableRow,
+    Cell,
+    HeaderCell,
+    ColSpan,
+    RowSpan,
+    InkColor,
+    FillColor,
     Embed,
   ],
   blocks: [
@@ -104,6 +127,12 @@ export const richAdapter = new SchemaAdapter({
     },
     { node: Columns, block: "columns" },
     { node: Column, block: "column" },
+    // Tables. The schema elements come from wordgard's `tables()` bundle; only
+    // the block names live here. Nesting rides in each marker's `parents`.
+    { node: Table, block: "table" },
+    { node: TableRow, block: "table-row" },
+    { node: Cell, block: "table-cell" },
+    { node: HeaderCell, block: "table-header-cell" },
     {
       node: Embed,
       block: "embed",
@@ -113,5 +142,13 @@ export const richAdapter = new SchemaAdapter({
         fromWordgard: node => ({ url: node.param }),
       },
     },
+  ],
+  marks: [
+    ...basicSchemaSpec.marks,
+    { mark: ColSpan, name: "colspan", parsers: numberMark },
+    { mark: RowSpan, name: "rowspan", parsers: numberMark },
+    // Colours are stored by NAME ("pink"), so a theme decides what pink is.
+    { mark: InkColor, name: "color", parsers: colorParsers },
+    { mark: FillColor, name: "background-color", parsers: colorParsers },
   ],
 })
