@@ -1,8 +1,8 @@
 // Notion-style slash menu. Typing `/` at the start of a block (or after a
 // space) opens a filterable menu.
 //
-// It shows two kinds of thing, kept apart: the `rich:block` block types the
-// current block can be turned into, and `rich:slash` commands, which insert or
+// It shows two kinds of thing, kept apart: the `lush:block` block types the
+// current block can be turned into, and `lush:slash` commands, which insert or
 // do something. Both kinds are plugins — the built-ins here plus anything the
 // host registry contributes — so a bundle can add either.
 import { Dialog, KeyBinding, Tooltip } from "wordgard/editor"
@@ -19,7 +19,7 @@ const images = () => import("./images.js")
 const pluginsPanel = () => import("./plugins-panel.js")
 
 const command = (id, name, group, icon, keywords, run) => ({
-  type: "rich:slash",
+  type: "lush:slash",
   id,
   name,
   group,
@@ -51,7 +51,7 @@ export const slashCommands = [
     insertTable(wg, 3, 3),
   ),
   {
-    type: "rich:slash",
+    type: "lush:slash",
     id: "plugins",
     name: "Plugins",
     group: "Note",
@@ -112,7 +112,7 @@ function insertTable(wg, rows, columns) {
 
 function insertImageFromUrl(wg) {
   const { result } = Dialog.show(wg, {
-    class: "rich-dialog",
+    class: "lush-dialog",
     label: "Image URL",
     input: { name: "src", type: "url", placeholder: "https://…" },
     submitLabel: "Insert",
@@ -194,14 +194,14 @@ function runItem(wg, item, context) {
     userEvent: "input.slash",
   })
   wg.focus()
-  if (item.type === "rich:block") item.apply(wg, context)
+  if (item.type === "lush:block") item.apply(wg, context)
   else item.run(wg, context)
   return true
 }
 
 function menuView(context) {
   return wg => {
-    const list = el("div", { class: "rich-slash" })
+    const list = el("div", { class: "lush-slash" })
     let rendered = null
 
     function render(state) {
@@ -217,14 +217,14 @@ function menuView(context) {
         const heading = item.group || "Commands"
         if (heading !== group) {
           group = heading
-          list.append(el("div", { class: "rich-slash-group" }, group))
+          list.append(el("div", { class: "lush-slash-group" }, group))
         }
         const button = el(
           "button",
           {
             class: [
-              "rich-slash-item",
-              item.type === "rich:block" ? "block" : "command",
+              "lush-slash-item",
+              item.type === "lush:block" ? "block" : "command",
               item === menu.selected ? "selected" : "",
             ]
               .filter(Boolean)
@@ -235,11 +235,11 @@ function menuView(context) {
               runItem(wg, item, context)
             },
           },
-          el("span", { class: "rich-slash-icon" }, icon(item)),
-          el("span", { class: "rich-slash-name" }, item.name),
-          item.type === "rich:block"
+          el("span", { class: "lush-slash-icon" }, icon(item)),
+          el("span", { class: "lush-slash-name" }, item.name),
+          item.type === "lush:block"
             ? null
-            : el("span", { class: "rich-slash-kind" }, "command"),
+            : el("span", { class: "lush-slash-kind" }, "command"),
         )
         list.append(button)
       }

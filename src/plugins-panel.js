@@ -4,7 +4,7 @@ import { el } from "./dom.js"
 import { pluginCatalog } from "./plugin-catalog.js"
 
 export function openPluginsPanel({ parent, handle, onClose = () => {} }) {
-  const existing = parent.querySelector(".rich-plugins-panel")
+  const existing = parent.querySelector(".lush-plugins-panel")
   if (existing) existing.remove()
 
   const enabled = id => {
@@ -26,15 +26,15 @@ export function openPluginsPanel({ parent, handle, onClose = () => {} }) {
   const row = entry =>
     el(
       "label",
-      { class: entry.tier === "core" ? "rich-plugin-row locked" : "rich-plugin-row" },
+      { class: entry.tier === "core" ? "lush-plugin-row locked" : "lush-plugin-row" },
       el("input", {
         type: "checkbox",
         checked: entry.tier === "core" ? true : enabled(entry.id),
         disabled: entry.tier === "core",
         onchange: () => toggle(entry.id),
       }),
-      el("span", { class: "rich-plugin-name" }, entry.name),
-      el("span", { class: "rich-plugin-id" }, entry.id),
+      el("span", { class: "lush-plugin-name" }, entry.name),
+      el("span", { class: "lush-plugin-id" }, entry.id),
     )
 
   const close = () => {
@@ -60,15 +60,15 @@ export function openPluginsPanel({ parent, handle, onClose = () => {} }) {
 
   const panel = el(
     "div",
-    { class: "rich-plugins-panel" },
+    { class: "lush-plugins-panel" },
     el(
       "div",
-      { class: "rich-plugins-header" },
+      { class: "lush-plugins-header" },
       el("span", {}, "Plugins"),
-      el("button", { class: "rich-plugins-close", type: "button", onclick: close }, "×"),
+      el("button", { class: "lush-plugins-close", type: "button", onclick: close }, "×"),
     ),
-    el("div", { class: "rich-plugins-body" }, full.map(row), [
-      core.length ? el("div", { class: "rich-plugins-section" }, "always on") : null,
+    el("div", { class: "lush-plugins-body" }, full.map(row), [
+      core.length ? el("div", { class: "lush-plugins-section" }, "always on") : null,
       ...core.map(row),
     ]),
   )

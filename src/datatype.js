@@ -1,12 +1,12 @@
 import * as am from "@automerge/automerge"
 import { spansFromDoc } from "./wordgard/index.js"
 import { Paragraph } from "wordgard/types"
-import { richAdapter } from "./adapter.js"
+import { lushAdapter } from "./adapter.js"
 import { builtinFullIds } from "./plugin-catalog.js"
 
 // The document model: a `content` rich-text field (edited via
 // @automerge/wordgard) plus an optional `title`.
-export const RichDatatype = {
+export const LushDatatype = {
   init(doc) {
     doc.title = ""
     doc.content = ""
@@ -16,12 +16,12 @@ export const RichDatatype = {
     // Seed a single empty paragraph so every peer starts from the same
     // block structure (avoids two peers concurrently creating a first
     // paragraph).
-    const seed = richAdapter.schema.doc([Paragraph.create([])])
+    const seed = lushAdapter.schema.doc([Paragraph.create([])])
     am.updateSpans(
       doc,
       ["content"],
-      spansFromDoc(richAdapter, seed),
-      richAdapter.updateSpansConfig(),
+      spansFromDoc(lushAdapter, seed),
+      lushAdapter.updateSpansConfig(),
     )
   },
 
@@ -36,7 +36,7 @@ export const RichDatatype = {
     } catch {
       // ignore
     }
-    return "Rich Text"
+    return "Lush"
   },
 
   setTitle(doc, title) {

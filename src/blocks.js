@@ -10,7 +10,7 @@ import { el, svg } from "./dom.js"
 import { openBlockMenu } from "./block-menu.js"
 import { openSlashAt } from "./slash.js"
 
-const DRAG_TYPE = "text/x-rich-block"
+const DRAG_TYPE = "text/x-lush-block"
 // How far left of a block the pointer still counts as "on" it, so the gutter
 // is reachable without the hover being lost in the gap.
 const GUTTER_REACH = 60
@@ -22,7 +22,7 @@ const MAX_SIDE_ZONE = 140
 // The containers whose children get handles: the document itself and any
 // column.
 function containers(wg) {
-  return [wg.contentDOM, ...wg.contentDOM.querySelectorAll(".rich-column")]
+  return [wg.contentDOM, ...wg.contentDOM.querySelectorAll(".lush-column")]
 }
 
 function blockCandidates(wg) {
@@ -84,7 +84,7 @@ class BlockGutter {
     this.dragging = null
 
     this.add = el("button", {
-      class: "rich-gutter-button",
+      class: "lush-gutter-button",
       type: "button",
       title: "Insert block below",
       onclick: () => this.insertBelow(),
@@ -94,7 +94,7 @@ class BlockGutter {
     // A <div>, not a <button>: browsers don't start native drags from form
     // controls, so a draggable button silently does nothing.
     this.grip = el("div", {
-      class: "rich-gutter-button rich-gutter-grip",
+      class: "lush-gutter-button lush-gutter-grip",
       role: "button",
       tabindex: "0",
       title: "Click for block options, drag to move",
@@ -110,8 +110,8 @@ class BlockGutter {
     this.grip.addEventListener("dragstart", event => this.dragStart(event))
     this.grip.addEventListener("dragend", () => this.dragEnd())
 
-    this.gutter = el("div", { class: "rich-gutter" }, this.add, this.grip)
-    this.indicator = el("div", { class: "rich-drop-indicator" })
+    this.gutter = el("div", { class: "lush-gutter" }, this.add, this.grip)
+    this.indicator = el("div", { class: "lush-drop-indicator" })
 
     this.onMouseMove = event => this.trackPointer(event)
     this.onMouseLeave = () => this.hide()
@@ -211,13 +211,13 @@ class BlockGutter {
     event.dataTransfer.effectAllowed = "move"
     event.dataTransfer.setData(DRAG_TYPE, "block")
     event.dataTransfer.setDragImage(found.element, 12, 12)
-    this.wg.dom.classList.add("rich-dragging")
+    this.wg.dom.classList.add("lush-dragging")
   }
 
   dragEnd() {
     this.dragging = null
     this.indicator.classList.remove("visible")
-    this.wg.dom.classList.remove("rich-dragging")
+    this.wg.dom.classList.remove("lush-dragging")
     this.hide()
   }
 
@@ -332,7 +332,7 @@ class BlockGutter {
   // fresh two-column row made from the target and the dragged block.
   dropBeside(source, target) {
     const column = Column.create([source.node])
-    const inColumn = target.container.classList?.contains("rich-column")
+    const inColumn = target.container.classList?.contains("lush-column")
     const replaced = inColumn ? blockRange(this.wg, target.container) : target.beside
     if (!replaced) return
 

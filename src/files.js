@@ -16,7 +16,7 @@ export function srcForImage(src) {
 
 function repo() {
   const repo = globalThis.repo
-  if (!repo) throw new Error("rich: no repo on window")
+  if (!repo) throw new Error("lush: no repo on window")
   return repo
 }
 

@@ -13,9 +13,9 @@ import { blockTypes } from "./block-types.js"
 // Lazy, because features and slash commands import each other: reading them at
 // module-eval time would depend on load order.
 export const pluginTypes = () => [
-  { type: "rich:feature", builtins: featurePlugins },
-  { type: "rich:block", builtins: blockTypes },
-  { type: "rich:slash", builtins: slashCommands },
+  { type: "lush:feature", builtins: featurePlugins },
+  { type: "lush:block", builtins: blockTypes },
+  { type: "lush:slash", builtins: slashCommands },
 ]
 
 function allPlugins() {

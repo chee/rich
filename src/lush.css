@@ -1,0 +1,949 @@
+@layer package {
+  :root,
+  :host,
+  [theme] {
+    --lush-fill: var(--editor-fill, white);
+    --lush-line: var(--editor-line, black);
+    --lush-muted: var(--editor-line-offset-50, #8a8a8e);
+    --lush-faint: var(--editor-line-offset-70, #b6b6ba);
+    --lush-border: var(--editor-fill-offset-20, #e3e3e6);
+    --lush-family: var(--editor-family-sans, ui-sans-serif, system-ui, sans-serif);
+    --lush-mono: var(--editor-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    --lush-accent: var(--studio-primary, #f4b400);
+    --lush-link: var(--studio-link, #2f6fe4);
+    --lush-panel: color-mix(in oklch, var(--editor-fill, white), var(--editor-line, black) 4%);
+    --lush-sunk: color-mix(in oklch, var(--editor-fill, white), var(--editor-line, black) 6%);
+    --lush-shadow: 0 8px 24px -8px color-mix(in oklch, var(--editor-line, black) 35%, transparent);
+    --lush-measure: 42rem;
+  }
+}
+
+.lush-tool {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--lush-fill);
+  color: var(--lush-line);
+  font-family: var(--lush-family);
+}
+
+.lush-tool .lush-page {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* The editor element: no chrome of its own — the page is the chrome. */
+.lush-tool .lush-page > * {
+  border: 0 !important;
+  outline: none !important;
+  height: 100%;
+  background: transparent;
+}
+
+.lush-tool .lush-page wg-scroller {
+  scrollbar-width: thin;
+  scrollbar-color: var(--lush-faint) transparent;
+}
+
+/* The text column is centred with padding rather than `margin: auto`, because
+   wordgard measures the cursor of an empty block from the content box's own
+   origin and lands in the wrong place when that box is offset. */
+.lush-tool .lush-page wg-content {
+  padding: 3rem max(1.5rem, calc((100% - var(--lush-measure)) / 2)) 40vh;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  hyphens: auto;
+}
+
+.lush-tool .lush-page wg-content > * {
+  margin: 0 0 0.55em;
+}
+
+/* Notes-style: the first line of the note is its title — but only when it is
+   an ordinary paragraph; a note that opens with a list or a heading keeps that
+   block's own styling. */
+.lush-tool .lush-page wg-content > p:first-child {
+  font-size: 1.75rem;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  margin-bottom: 1rem;
+}
+
+.lush-tool .lush-page wg-content h1,
+.lush-tool .lush-page wg-content h2,
+.lush-tool .lush-page wg-content h3,
+.lush-tool .lush-page wg-content h4 {
+  font-weight: 640;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  margin: 1.6em 0 0.4em;
+}
+
+.lush-tool .lush-page wg-content h1 { font-size: 1.6rem; }
+.lush-tool .lush-page wg-content h2 { font-size: 1.3rem; }
+.lush-tool .lush-page wg-content h3 { font-size: 1.1rem; }
+
+.lush-tool .lush-page wg-content blockquote {
+  margin: 0.8em 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--lush-border);
+  color: var(--lush-muted);
+}
+
+.lush-tool .lush-page wg-content pre {
+  font-family: var(--lush-mono);
+  font-size: 0.9em;
+  background: var(--lush-sunk);
+  border-radius: 6px;
+  padding: 0.75rem 0.9rem;
+  overflow-x: auto;
+}
+
+.lush-tool .lush-page wg-content code {
+  font-family: var(--lush-mono);
+  font-size: 0.9em;
+  background: var(--lush-sunk);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+
+.lush-tool .lush-page wg-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.lush-tool .lush-page wg-content ul,
+.lush-tool .lush-page wg-content ol {
+  padding-left: 1.4rem;
+}
+
+.lush-tool .lush-page wg-content li {
+  margin: 0;
+}
+
+/* A list item holds block content, so each line is a paragraph inside the
+   <li>; without this the browser's paragraph margins push the bullets apart. */
+.lush-tool .lush-page wg-content li > p,
+.lush-tool .lush-page wg-content blockquote > p,
+.lush-tool .lush-page wg-content td > p,
+.lush-tool .lush-page wg-content th > p {
+  margin: 0;
+}
+
+.lush-tool .lush-page wg-content li > * + *,
+.lush-tool .lush-page wg-content blockquote > * + * {
+  margin-top: 0.4em;
+}
+
+.lush-tool .lush-page wg-content li > ul,
+.lush-tool .lush-page wg-content li > ol {
+  margin-top: 0;
+}
+
+.lush-tool .lush-page wg-content a {
+  color: var(--lush-link);
+  text-underline-offset: 2px;
+}
+
+.lush-tool .lush-page wg-content img {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+.lush-tool .lush-page wg-placeholder {
+  color: var(--lush-faint);
+  opacity: 1;
+}
+
+/* A dropped document embeds as a card. Wordgard renders the atom leaf as
+   <patchwork-view>, which mounts the referenced document itself. */
+.lush-tool patchwork-view {
+  display: block;
+  margin: 0.75rem 0;
+  min-height: 2.5rem;
+  border: 1px solid var(--lush-border);
+  border-radius: 10px;
+  background: var(--lush-panel);
+  overflow: hidden;
+  max-height: 480px;
+}
+
+.lush-tool .wg-selected-node {
+  outline: 2px solid var(--lush-accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* Block handles — the gutter that follows the hovered block. */
+.lush-gutter {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  transform: translateX(calc(-100% - 8px));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.lush-gutter.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.lush-gutter-button {
+  all: unset;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--lush-faint);
+  cursor: pointer;
+}
+
+.lush-gutter-button:hover {
+  background: var(--lush-sunk);
+  color: var(--lush-line);
+}
+
+.lush-gutter-grip {
+  cursor: grab;
+  -webkit-user-drag: element;
+  user-select: none;
+}
+
+.lush-dragging .lush-gutter-grip {
+  cursor: grabbing;
+}
+
+.lush-drop-indicator {
+  position: absolute;
+  z-index: 20;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--lush-accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.lush-drop-indicator.visible {
+  opacity: 1;
+}
+
+/* Slash menu. */
+.lush-slash {
+  min-width: 15rem;
+  max-height: 19rem;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--lush-border);
+  border-radius: 10px;
+  background: var(--lush-panel);
+  box-shadow: var(--lush-shadow);
+  font-family: var(--lush-family);
+  font-size: 0.875rem;
+  color: var(--lush-line);
+}
+
+.lush-slash-group {
+  padding: 6px 8px 2px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lush-muted);
+}
+
+.lush-slash-item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.lush-slash-item:hover {
+  background: var(--lush-sunk);
+}
+
+.lush-slash-item.selected {
+  background: color-mix(in oklch, var(--lush-accent) 25%, var(--lush-panel));
+  box-shadow: inset 2px 0 0 var(--lush-accent);
+}
+
+.lush-slash-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  background: var(--lush-fill);
+  border: 1px solid var(--lush-border);
+  color: var(--lush-line);
+}
+
+/* Selection format bar. */
+.lush-format-bar {
+  position: absolute;
+  z-index: 30;
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: min(calc(100vw - 24px), 32rem);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--lush-border);
+  border-radius: 8px;
+  background: var(--lush-panel);
+  box-shadow: var(--lush-shadow);
+}
+
+.lush-format-bar.visible {
+  display: flex;
+}
+
+/* Row two: the character formatting. */
+.lush-format-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* Row one: what this block is, dropping down what else it could be. */
+.lush-format-block-control {
+  position: relative;
+  display: flex;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--lush-border);
+  margin-bottom: 1px;
+}
+
+.lush-format-block {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.lush-format-block:hover {
+  background: var(--lush-sunk);
+}
+
+.lush-format-block-name {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.lush-format-chevron {
+  color: var(--lush-faint);
+}
+
+.lush-format-block-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 4px;
+  border: 1px solid var(--lush-border);
+  border-radius: 8px;
+  background: var(--lush-panel);
+  box-shadow: var(--lush-shadow);
+}
+
+.lush-format-block-item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lush-format-block-item:hover {
+  background: var(--lush-sunk);
+}
+
+.lush-format-tick {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--lush-accent);
+}
+
+.lush-format-button {
+  all: unset;
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 5px;
+  border-radius: 5px;
+  font-size: 0.8125rem;
+  color: var(--lush-line);
+  cursor: pointer;
+}
+
+.lush-format-button:hover {
+  background: var(--lush-sunk);
+}
+
+.lush-format-button.active {
+  background: var(--lush-accent);
+}
+
+.lush-format-button[title="Bold"] { font-weight: 700; }
+.lush-format-button[title="Italic"] { font-style: italic; font-family: serif; }
+
+.lush-format-separator {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--lush-border);
+}
+
+.lush-format-bar .hidden {
+  display: none;
+}
+
+.lush-dialog {
+  font-family: var(--lush-family);
+}
+
+/* Columns — the Notion arrangement: blocks side by side. */
+.lush-tool .lush-columns {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 1.25rem;
+  align-items: start;
+  margin: 0.75rem 0;
+}
+
+.lush-tool .lush-column {
+  min-width: 0;
+  padding-left: 0.25rem;
+  border-left: 1px solid transparent;
+}
+
+.lush-tool .lush-column:hover {
+  border-left-color: var(--lush-border);
+}
+
+.lush-tool .lush-column > :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 34rem) {
+  .lush-tool .lush-columns {
+    grid-auto-flow: row;
+  }
+}
+
+/* Images are file documents; the <img> resolves them through the service
+   worker. A broken/loading one still needs to be selectable. */
+.lush-tool .lush-page wg-content img {
+  display: block;
+  max-width: 100%;
+  min-height: 1.2em;
+  border-radius: 8px;
+}
+
+/* The /plugins panel. */
+.lush-plugins-panel {
+  position: absolute;
+  z-index: 40;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, calc(100% - 2rem));
+  max-height: 70%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--lush-border);
+  border-radius: 12px;
+  background: var(--lush-panel);
+  box-shadow: var(--lush-shadow);
+  font-family: var(--lush-family);
+  color: var(--lush-line);
+}
+
+.lush-plugins-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--lush-border);
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.lush-plugins-close {
+  all: unset;
+  cursor: pointer;
+  padding: 0 0.35rem;
+  border-radius: 5px;
+  color: var(--lush-muted);
+}
+
+.lush-plugins-close:hover {
+  background: var(--lush-sunk);
+  color: var(--lush-line);
+}
+
+.lush-plugins-body {
+  overflow-y: auto;
+  padding: 0.35rem;
+}
+
+.lush-plugin-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.lush-plugin-row:hover {
+  background: var(--lush-sunk);
+}
+
+.lush-plugin-row.locked {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.lush-plugin-name {
+  flex: 1;
+}
+
+.lush-plugin-id {
+  font-family: var(--lush-mono);
+  font-size: 0.75rem;
+  color: var(--lush-muted);
+}
+
+.lush-plugins-section {
+  padding: 0.6rem 0.5rem 0.2rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lush-muted);
+}
+
+.lush-drop-indicator.vertical {
+  width: 2px;
+  height: auto;
+  margin-left: -1px;
+}
+
+/* Embedded documents draw themselves — see embed-element.js, which renders
+   into a shadow root so the editor can't wipe its chrome. */
+
+/* Tables. */
+.lush-tool .lush-page wg-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75rem 0;
+  font-size: 0.95em;
+}
+
+.lush-tool .lush-page wg-content th,
+.lush-tool .lush-page wg-content td {
+  border: 1px solid var(--lush-border);
+  padding: 0.35em 0.55em;
+  vertical-align: top;
+  min-width: 3rem;
+}
+
+.lush-tool .lush-page wg-content th {
+  background: var(--lush-sunk);
+  font-weight: 600;
+  text-align: start;
+}
+
+.lush-tool .lush-page wg-content .wg-selected-cell {
+  outline: 2px solid var(--lush-accent);
+  outline-offset: -2px;
+}
+
+/* Table handles: a grip along each row and column that selects it, and a "+"
+   past the last of each that grows the table. Drawn in an overlay rather than
+   in the table, which the editor owns. */
+.lush-table-handles {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+/* `all: unset` first: it would otherwise wipe the positioning these need. */
+.lush-table-plus {
+  all: unset;
+}
+
+.lush-table-grip,
+.lush-table-plus {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.lush-table-grip {
+  border-radius: 3px;
+  background: var(--lush-border);
+  opacity: 0.6;
+}
+
+.lush-table-grip:hover {
+  background: var(--lush-accent);
+  opacity: 1;
+}
+
+.lush-table-plus {
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--lush-faint);
+  background: var(--lush-sunk);
+}
+
+.lush-table-plus.column {
+  width: 14px;
+}
+
+.lush-table-plus.row {
+  height: 14px;
+}
+
+.lush-table-plus:hover {
+  color: var(--lush-line);
+  background: var(--lush-border);
+}
+
+/* Highlights: five hues from chee's palette (create-chee-app's palette.css),
+   each worn as a background — the editor's own fill nudged towards the hue —
+   and a text colour, the same hue taken deep or bright. `light-dark()` picks
+   between them per the current `color-scheme`, so they follow the theme the
+   editor is wearing rather than the reader's operating system. */
+@layer package {
+  :root,
+  :host,
+  [theme] {
+    --lush-highlight-pink-hue: oklch(0.67 0.29 340.37); /* pizzazz */
+    --lush-highlight-yellow-hue: oklch(0.86 0.16 87.44); /* sunglow */
+    --lush-highlight-sky-hue: oklch(0.79 0.14 226.17); /* sky */
+    --lush-highlight-sea-hue: oklch(0.57 0.23 262.55); /* f-blue */
+    --lush-highlight-mint-hue: oklch(0.88 0.17 167.51); /* mynt */
+
+    --lush-highlight-pink-bg: light-dark(
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-pink-hue) 18%),
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-pink-hue) 28%)
+    );
+    --lush-highlight-pink-ink: light-dark(
+      oklch(from var(--lush-highlight-pink-hue) 0.45 c h),
+      oklch(from var(--lush-highlight-pink-hue) 0.86 c h)
+    );
+    --lush-highlight-yellow-bg: light-dark(
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-yellow-hue) 18%),
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-yellow-hue) 28%)
+    );
+    --lush-highlight-yellow-ink: light-dark(
+      oklch(from var(--lush-highlight-yellow-hue) 0.45 c h),
+      oklch(from var(--lush-highlight-yellow-hue) 0.86 c h)
+    );
+    --lush-highlight-sky-bg: light-dark(
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-sky-hue) 18%),
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-sky-hue) 28%)
+    );
+    --lush-highlight-sky-ink: light-dark(
+      oklch(from var(--lush-highlight-sky-hue) 0.45 c h),
+      oklch(from var(--lush-highlight-sky-hue) 0.86 c h)
+    );
+    --lush-highlight-sea-bg: light-dark(
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-sea-hue) 18%),
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-sea-hue) 28%)
+    );
+    /* Sea is the deepest of the five: taken as light as the others its chroma
+       clips away to lavender-grey, so on dark it stays lower and keeps its
+       blue. */
+    --lush-highlight-sea-ink: light-dark(
+      oklch(from var(--lush-highlight-sea-hue) 0.45 c h),
+      oklch(from var(--lush-highlight-sea-hue) 0.72 calc(c * 1.4) h)
+    );
+    --lush-highlight-mint-bg: light-dark(
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-mint-hue) 18%),
+      color-mix(in oklch, var(--lush-fill), var(--lush-highlight-mint-hue) 28%)
+    );
+    --lush-highlight-mint-ink: light-dark(
+      oklch(from var(--lush-highlight-mint-hue) 0.45 c h),
+      oklch(from var(--lush-highlight-mint-hue) 0.86 c h)
+    );
+  }
+}
+
+
+.lush-tool .lush-highlight {
+  border-radius: 3px;
+  padding: 0.05em 0.15em;
+  margin: 0 -0.05em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.lush-tool .lush-highlight-pink {
+  background: var(--lush-highlight-pink-bg);
+  color: var(--lush-highlight-pink-ink);
+}
+.lush-tool .lush-highlight-yellow {
+  background: var(--lush-highlight-yellow-bg);
+  color: var(--lush-highlight-yellow-ink);
+}
+.lush-tool .lush-highlight-sky {
+  background: var(--lush-highlight-sky-bg);
+  color: var(--lush-highlight-sky-ink);
+}
+.lush-tool .lush-highlight-sea {
+  background: var(--lush-highlight-sea-bg);
+  color: var(--lush-highlight-sea-ink);
+}
+.lush-tool .lush-highlight-mint {
+  background: var(--lush-highlight-mint-bg);
+  color: var(--lush-highlight-mint-ink);
+}
+
+/* The link editor: hung off the link button, so it sits at the words being
+   linked rather than at the edge of the editor. */
+.lush-link-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lush-link-editor {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--lush-border);
+  border-radius: 8px;
+  background: var(--lush-panel);
+  box-shadow: var(--lush-shadow);
+}
+
+.lush-link-input {
+  all: unset;
+  width: 15rem;
+  padding: 4px 7px;
+  border: 1px solid var(--lush-border);
+  border-radius: 5px;
+  background: var(--lush-fill);
+  color: var(--lush-line);
+  font-family: var(--lush-family);
+  font-size: 0.85rem;
+}
+
+.lush-link-input:focus {
+  border-color: var(--lush-accent);
+}
+
+.lush-link-submit,
+.lush-link-remove {
+  all: unset;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lush-link-submit:hover,
+.lush-link-remove:hover {
+  background: var(--lush-sunk);
+}
+
+.lush-link-remove {
+  color: var(--lush-muted);
+}
+
+/* The table control in the selection bar: one button, dropping down the
+   row and column actions. */
+.lush-table-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.lush-table-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 4px;
+  border: 1px solid var(--lush-border);
+  border-radius: 8px;
+  background: var(--lush-panel);
+  box-shadow: var(--lush-shadow);
+}
+
+.lush-table-menu-item {
+  all: unset;
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.lush-table-menu-item:hover {
+  background: var(--lush-sunk);
+}
+
+.lush-table-menu-item.danger:hover {
+  background: color-mix(in oklch, var(--lush-fill), #ff4d4d 16%);
+  color: #b02424;
+}
+
+/* The highlight control in the selection bar: a marker that applies the
+   current colour, and a dot wearing that colour that opens the list. */
+.lush-highlight-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.lush-highlight-dot {
+  all: unset;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid var(--lush-border);
+  cursor: pointer;
+}
+
+.lush-highlight-dot:hover {
+  border-color: var(--lush-line);
+}
+
+.lush-highlight-chooser {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--lush-border);
+  border-radius: 8px;
+  background: var(--lush-panel);
+  box-shadow: var(--lush-shadow);
+}
+
+.lush-highlight-swatch {
+  all: unset;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.lush-highlight-swatch:hover {
+  border-color: var(--lush-line);
+}
+
+.lush-highlight-swatch[data-highlight="none"],
+.lush-highlight-dot[data-highlight="none"] {
+  background:
+    linear-gradient(
+      to top right,
+      transparent 45%,
+      var(--lush-faint) 45%,
+      var(--lush-faint) 55%,
+      transparent 55%
+    );
+}
+
+
+/* The block handle's menu. */
+.lush-block-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 13rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--lush-border);
+  border-radius: 10px;
+  background: var(--lush-panel);
+  box-shadow: var(--lush-shadow);
+  font-family: var(--lush-family);
+  font-size: 0.875rem;
+  color: var(--lush-line);
+}
+
+.lush-block-menu-group {
+  padding: 6px 8px 2px;
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lush-muted);
+}
+
+.lush-block-menu-item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.lush-block-menu-item:hover {
+  background: var(--lush-sunk);
+}
+
+.lush-block-menu-item.active {
+  background: color-mix(in oklch, var(--lush-accent) 25%, var(--lush-panel));
+}
+
+.lush-block-menu-item.danger:hover {
+  background: color-mix(in oklch, var(--lush-fill), #ff4d4d 16%);
+  color: #b02424;
+}
+
+/* Blocks and commands read differently in the slash menu. */
+.lush-slash-kind {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  color: var(--lush-faint);
+}

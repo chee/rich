@@ -25,7 +25,7 @@ await page.waitForTimeout(200)
 const barBox = async () => {
   await page.waitForTimeout(200)
   return page.evaluate(() => {
-    const bar = document.querySelector(".rich-format-bar")
+    const bar = document.querySelector(".lush-format-bar")
     const { top, left, right, bottom, width, height } = bar.getBoundingClientRect()
     return { top, left, right, bottom, width, height, visible: bar.classList.contains("visible") }
   })

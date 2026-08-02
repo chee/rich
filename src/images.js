@@ -3,7 +3,7 @@
 // block holding that document's AutomergeUrl.
 import { Wordgard } from "wordgard/editor"
 import { GardState } from "wordgard/state"
-import { RichImage } from "./adapter.js"
+import { LushImage } from "./adapter.js"
 import { createFileDoc, imageFiles, pickImageFiles } from "./files.js"
 
 // Create the file docs, then insert them as image blocks at `pos`. The
@@ -15,13 +15,13 @@ export async function insertImageFiles(wg, files, pos) {
     try {
       urls.push(await createFileDoc(file))
     } catch (error) {
-      console.error("rich: could not store image", error)
+      console.error("lush: could not store image", error)
     }
   }
   if (!urls.length) return
   const at = Math.min(pos ?? wg.state.selection.head, wg.state.doc.contentLength)
   wg.dispatch({
-    changes: { from: at, insert: urls.map(url => RichImage.of(url)), fit: true },
+    changes: { from: at, insert: urls.map(url => LushImage.of(url)), fit: true },
     scrollIntoView: true,
   })
   wg.focus()
@@ -34,7 +34,7 @@ export async function uploadImage(wg) {
 
 export function insertImageUrl(wg, src) {
   wg.dispatch({
-    changes: { from: wg.state.selection.head, insert: [RichImage.of(src)], fit: true },
+    changes: { from: wg.state.selection.head, insert: [LushImage.of(src)], fit: true },
     scrollIntoView: true,
   })
   wg.focus()

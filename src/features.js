@@ -1,8 +1,8 @@
-// Features are `rich:feature` plugins, not fields on the editor. Each one
+// Features are `lush:feature` plugins, not fields on the editor. Each one
 // contributes Wordgard extensions; the tool enables a set of them with a single
-// selector that applies across every rich plugin type.
+// selector that applies across every lush plugin type.
 //
-// A host bundle can register more of them: `{type: "rich:feature", id, name,
+// A host bundle can register more of them: `{type: "lush:feature", id, name,
 // tier, async load() { return {extensions(context)} }}` — metadata is
 // serializable, the function rides behind `load()`.
 import { InputRule, Wordgard, dropCursor, placeholder } from "wordgard/editor"
@@ -18,7 +18,7 @@ import { Embed, EmbedTool } from "./adapter.js"
 import { loadedPlugins } from "./registry.js"
 
 const feature = (id, name, tier, extensions) => ({
-  type: "rich:feature",
+  type: "lush:feature",
   id,
   name,
   tier,
@@ -53,11 +53,11 @@ function embedExtensions() {
     return true
   }
 
-  // `<rich-embed>` asks for a tool by dispatching an event: it draws the menu,
+  // `<lush-embed>` asks for a tool by dispatching an event: it draws the menu,
   // the editor owns the document.
   const chooseTool = Wordgard.Plugin.define(wg => {
     const onChoose = event => {
-      const element = event.target.closest?.("rich-embed") ?? event.target
+      const element = event.target.closest?.("lush-embed") ?? event.target
       let found
       try {
         found = wg.nodeFromDOM(element)
@@ -75,9 +75,9 @@ function embedExtensions() {
       if (changes.length) wg.dispatch({ changes, userEvent: "embed.tool" })
     }
     return {
-      connect: () => wg.dom.addEventListener("rich-embed-tool", onChoose),
-      disconnect: () => wg.dom.removeEventListener("rich-embed-tool", onChoose),
-      remove: () => wg.dom.removeEventListener("rich-embed-tool", onChoose),
+      connect: () => wg.dom.addEventListener("lush-embed-tool", onChoose),
+      disconnect: () => wg.dom.removeEventListener("lush-embed-tool", onChoose),
+      remove: () => wg.dom.removeEventListener("lush-embed-tool", onChoose),
     }
   }).extension
 
@@ -116,11 +116,11 @@ export const featurePlugins = [
 // Live plugin lists for both types. `selector` is read on every refresh, so the
 // tool can change it (the `/plugins` panel writing to `doc.plugins`) and call
 // `refresh()`.
-export function richPlugins(selector, onChange) {
+export function lushPlugins(selector, onChange) {
   return {
-    blocks: loadedPlugins("rich:block", blockTypes, selector, onChange),
-    commands: loadedPlugins("rich:slash", slashCommands, selector, onChange),
-    features: loadedPlugins("rich:feature", featurePlugins, selector, onChange),
+    blocks: loadedPlugins("lush:block", blockTypes, selector, onChange),
+    commands: loadedPlugins("lush:slash", slashCommands, selector, onChange),
+    features: loadedPlugins("lush:feature", featurePlugins, selector, onChange),
   }
 }
 
@@ -134,7 +134,7 @@ export function featureExtensions(features, context) {
     try {
       extensions.push(plugin.extensions(context))
     } catch (error) {
-      console.error(`rich: feature "${plugin.id}" failed to build extensions`, error)
+      console.error(`lush: feature "${plugin.id}" failed to build extensions`, error)
     }
   }
   return extensions

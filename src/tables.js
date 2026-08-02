@@ -1,7 +1,7 @@
 // Table editing. `tables()` in tool.js brings the schema, the cell selection
 // and the correction/paste/drop handlers, but the row and column commands it
-// registers are menu items, and rich has no menu bar. These put the same
-// commands on the surfaces rich does have: the block menu, the format bar when
+// registers are menu items, and lush has no menu bar. These put the same
+// commands on the surfaces lush does have: the block menu, the format bar when
 // cells are selected, Tab between cells, and handles on the table itself.
 import { Command } from "wordgard/command"
 import { KeyBinding, Wordgard } from "wordgard/editor"
@@ -95,30 +95,30 @@ export function tableMenu(wg) {
   const button = el(
     "button",
     {
-      class: "rich-format-button rich-table-menu-button",
+      class: "lush-format-button lush-table-menu-button",
       type: "button",
       title: "Table",
       onmousedown: event => {
         event.preventDefault()
-        control.querySelector(".rich-table-menu") ? close() : open()
+        control.querySelector(".lush-table-menu") ? close() : open()
       },
     },
     svg(TABLE_ICON),
   )
 
-  const control = el("span", { class: "rich-table-control" }, button)
+  const control = el("span", { class: "lush-table-control" }, button)
 
   let close = () => {}
 
   function open() {
     const menu = el(
       "div",
-      { class: "rich-table-menu" },
+      { class: "lush-table-menu" },
       TABLE_ACTIONS.map(action =>
         el(
           "button",
           {
-            class: action.danger ? "rich-table-menu-item danger" : "rich-table-menu-item",
+            class: action.danger ? "lush-table-menu-item danger" : "lush-table-menu-item",
             type: "button",
             onmousedown: event => {
               event.preventDefault()
@@ -241,7 +241,7 @@ class TableHandles {
   constructor(wg) {
     this.wg = wg
     this.table = null
-    this.layer = el("div", { class: "rich-table-handles" })
+    this.layer = el("div", { class: "lush-table-handles" })
 
     this.onMouseMove = event => this.track(event)
     this.onMouseLeave = () => this.hide()
@@ -334,7 +334,7 @@ class TableHandles {
     const grip = (className, rect, onclick) =>
       this.layer.append(
         el("div", {
-          class: `rich-table-grip ${className}`,
+          class: `lush-table-grip ${className}`,
           role: "button",
           tabindex: "0",
           title: "Select",
@@ -348,7 +348,7 @@ class TableHandles {
 
     const plus = (className, style, title, onclick) => {
       const button = el("button", {
-        class: `rich-table-plus ${className}`,
+        class: `lush-table-plus ${className}`,
         type: "button",
         title,
         style,

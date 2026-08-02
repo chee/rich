@@ -1,4 +1,4 @@
-// `<rich-embed doc-url="automerge:…">` — an embedded Patchwork document,
+// `<lush-embed doc-url="automerge:…">` — an embedded Patchwork document,
 // rendered the way `space` renders one on its canvas: a System-7-ish window
 // with a striped titlebar, the document's name, and an open box that navigates
 // to it. Image file documents render as an `<img>`; everything else mounts a
@@ -12,7 +12,7 @@ import { automergeUrlToServiceWorkerUrl } from "@inkandswitch/patchwork-filesyst
 import { getRegistry, getSupportedToolsForType } from "@inkandswitch/patchwork-plugins"
 import { el, svg } from "./dom.js"
 
-const NAME = "rich-embed"
+const NAME = "lush-embed"
 
 // Styles live with the element, since it renders into a shadow root. The
 // custom properties come from the tool's stylesheet by inheritance.
@@ -20,43 +20,48 @@ const STYLE = `
   :host {
     display: block;
     margin: 0.75rem 0;
-    border: 1px solid var(--rich-line, currentColor);
-    border-radius: 3px;
-    background: var(--rich-fill, white);
-    box-shadow: 2px 2px 0 color-mix(in oklch, var(--rich-line, black) 25%, transparent);
-    overflow: hidden;
     user-select: none;
   }
-  .rich-embed-bar {
+  /* The window is a wrapper rather than the host: the editor owns the host's
+     attributes and rewrites them, so nothing about how this renders can live
+     up there. */
+  .lush-embed-window {
+    border: 1px solid var(--lush-line, currentColor);
+    border-radius: 3px;
+    background: var(--lush-fill, white);
+    box-shadow: 2px 2px 0 color-mix(in oklch, var(--lush-line, black) 25%, transparent);
+    overflow: hidden;
+  }
+  .lush-embed-bar {
     display: flex;
     align-items: center;
     gap: 6px;
     min-height: 22px;
     padding: 3px 6px;
-    border-bottom: 1px solid var(--rich-line, currentColor);
-    background-color: var(--rich-fill, white);
+    border-bottom: 1px solid var(--lush-line, currentColor);
+    background-color: var(--lush-fill, white);
     background-image: repeating-linear-gradient(
-      var(--rich-border, #ddd) 0px,
-      var(--rich-border, #ddd) 1px,
+      var(--lush-border, #ddd) 0px,
+      var(--lush-border, #ddd) 1px,
       transparent 1px,
       transparent 3px
     );
-    font: 600 0.8125rem var(--rich-family, system-ui, sans-serif);
+    font: 600 0.8125rem var(--lush-family, system-ui, sans-serif);
   }
-  .rich-embed-open {
+  .lush-embed-open {
     all: unset;
     flex-shrink: 0;
     width: 12px;
     height: 12px;
     border-radius: 2px;
-    background: var(--rich-sunk, #eee);
+    background: var(--lush-sunk, #eee);
     box-shadow:
-      inset 1px 1px 0 color-mix(in oklch, var(--rich-line, black) 45%, transparent),
-      inset -1px -1px 0 var(--rich-fill, white);
+      inset 1px 1px 0 color-mix(in oklch, var(--lush-line, black) 45%, transparent),
+      inset -1px -1px 0 var(--lush-fill, white);
     cursor: pointer;
   }
-  .rich-embed-open:hover { background: var(--rich-accent, gold); }
-  .rich-embed-title {
+  .lush-embed-open:hover { background: var(--lush-accent, gold); }
+  .lush-embed-title {
     flex: 1;
     min-width: 0;
     padding: 0 6px;
@@ -64,42 +69,42 @@ const STYLE = `
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: center;
-    background: var(--rich-fill, white);
-    color: var(--rich-line, inherit);
+    background: var(--lush-fill, white);
+    color: var(--lush-line, inherit);
   }
-  .rich-embed-kind {
+  .lush-embed-kind {
     all: unset;
     flex-shrink: 0;
     padding: 1px 5px;
     border-radius: 4px;
-    font: 400 0.6875rem var(--rich-family, system-ui, sans-serif);
+    font: 400 0.6875rem var(--lush-family, system-ui, sans-serif);
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: var(--rich-muted, #888);
-    background: var(--rich-fill, white);
+    color: var(--lush-muted, #888);
+    background: var(--lush-fill, white);
     cursor: pointer;
   }
-  .rich-embed-kind:hover { color: var(--rich-line, black); background: var(--rich-sunk, #eee); }
-  .rich-embed-tools {
+  .lush-embed-kind:hover { color: var(--lush-line, black); background: var(--lush-sunk, #eee); }
+  .lush-embed-tools {
     padding: 6px;
-    border-bottom: 1px solid var(--rich-border, #ddd);
-    background: var(--rich-panel, #fafafa);
-    font: 0.8125rem var(--rich-family, system-ui, sans-serif);
-    color: var(--rich-line, inherit);
+    border-bottom: 1px solid var(--lush-border, #ddd);
+    background: var(--lush-panel, #fafafa);
+    font: 0.8125rem var(--lush-family, system-ui, sans-serif);
+    color: var(--lush-line, inherit);
   }
-  .rich-embed-tools[hidden] { display: none; }
-  .rich-embed-tool-search {
+  .lush-embed-tools[hidden] { display: none; }
+  .lush-embed-tool-search {
     all: unset;
     box-sizing: border-box;
     width: 100%;
     padding: 4px 6px;
-    border: 1px solid var(--rich-border, #ddd);
+    border: 1px solid var(--lush-border, #ddd);
     border-radius: 6px;
-    background: var(--rich-fill, white);
-    color: var(--rich-line, inherit);
+    background: var(--lush-fill, white);
+    color: var(--lush-line, inherit);
   }
-  .rich-embed-tool-list { max-height: 9rem; overflow-y: auto; margin-top: 4px; }
-  .rich-embed-tool {
+  .lush-embed-tool-list { max-height: 9rem; overflow-y: auto; margin-top: 4px; }
+  .lush-embed-tool {
     all: unset;
     display: flex;
     align-items: baseline;
@@ -110,31 +115,30 @@ const STYLE = `
     border-radius: 5px;
     cursor: pointer;
   }
-  .rich-embed-tool:hover { background: var(--rich-sunk, #eee); }
-  .rich-embed-tool.current { background: color-mix(in oklch, var(--rich-accent, gold) 25%, transparent); }
-  .rich-embed-tool-id {
+  .lush-embed-tool:hover { background: var(--lush-sunk, #eee); }
+  .lush-embed-tool.current { background: color-mix(in oklch, var(--lush-accent, gold) 25%, transparent); }
+  .lush-embed-tool-id {
     margin-left: auto;
-    font-family: var(--rich-mono, monospace);
+    font-family: var(--lush-mono, monospace);
     font-size: 0.6875rem;
-    color: var(--rich-muted, #888);
+    color: var(--lush-muted, #888);
   }
-  .rich-embed-tool-hint { padding: 4px 6px; font-size: 0.75rem; color: var(--rich-muted, #888); }
-  .rich-embed-body { display: block; min-height: 2.5rem; max-height: 420px; overflow: hidden; }
-  .rich-embed-body patchwork-view { display: block; width: 100%; height: 420px; }
-  img, video { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--rich-sunk, #eee); }
+  .lush-embed-tool-hint { padding: 4px 6px; font-size: 0.75rem; color: var(--lush-muted, #888); }
+  .lush-embed-body { display: block; min-height: 2.5rem; max-height: 420px; overflow: hidden; }
+  .lush-embed-body patchwork-view { display: block; width: 100%; height: 420px; }
+  img, video { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--lush-sunk, #eee); }
   audio { display: block; width: 100%; }
 
   /* Media is itself: no window, no titlebar, nothing to open. */
-  :host([media]) {
+  .lush-embed-window.media {
     border: 0;
     border-radius: 0;
     background: none;
     box-shadow: none;
   }
-  :host([media]) .rich-embed-bar { display: none; }
-  :host([media]) .rich-embed-body { max-height: none; }
-  :host([media="audio"]) { margin: 0.5rem 0; }
-  .rich-embed-loading { display: grid; place-items: center; height: 3rem; color: var(--rich-faint, #bbb); }
+  .media .lush-embed-bar { display: none; }
+  .media .lush-embed-body { max-height: none; }
+  .lush-embed-loading { display: grid; place-items: center; height: 3rem; color: var(--lush-faint, #bbb); }
 `
 
 // Media renders as itself. The mime type's top level is the element's name,
@@ -151,7 +155,7 @@ async function loadDoc(url) {
     const handle = await repo.find(url)
     return handle.doc() ?? null
   } catch (error) {
-    console.warn("rich: could not load embedded document", url, error)
+    console.warn("lush: could not load embedded document", url, error)
     return null
   }
 }
@@ -178,7 +182,7 @@ async function titleOf(doc, type) {
   return String(doc.title ?? doc.name ?? type ?? "Document")
 }
 
-class RichEmbed extends HTMLElement {
+class LushEmbed extends HTMLElement {
   static observedAttributes = ["doc-url", "tool-id"]
 
   connectedCallback() {
@@ -199,9 +203,9 @@ class RichEmbed extends HTMLElement {
   }
 
   build() {
-    this.title$ = el("span", { class: "rich-embed-title" })
+    this.title$ = el("span", { class: "lush-embed-title" })
     this.open$ = el("button", {
-      class: "rich-embed-open",
+      class: "lush-embed-open",
       type: "button",
       title: "Open document",
       onclick: event => {
@@ -212,7 +216,7 @@ class RichEmbed extends HTMLElement {
       },
     })
     this.kind$ = el("button", {
-      class: "rich-embed-kind",
+      class: "lush-embed-kind",
       type: "button",
       title: "Choose the tool that renders this document",
       onclick: event => {
@@ -221,13 +225,16 @@ class RichEmbed extends HTMLElement {
         this.toggleTools()
       },
     })
-    this.body$ = el("div", { class: "rich-embed-body" })
-    this.tools$ = el("div", { class: "rich-embed-tools", hidden: true })
-    this.shadowRoot.append(
-      el("div", { class: "rich-embed-bar" }, this.open$, this.title$, this.kind$),
+    this.body$ = el("div", { class: "lush-embed-body" })
+    this.tools$ = el("div", { class: "lush-embed-tools", hidden: true })
+    this.window$ = el(
+      "div",
+      { class: "lush-embed-window" },
+      el("div", { class: "lush-embed-bar" }, this.open$, this.title$, this.kind$),
       this.tools$,
       this.body$,
     )
+    this.shadowRoot.append(this.window$)
   }
 
   // A filterable list of the tools that can render this document. Typing a
@@ -237,13 +244,13 @@ class RichEmbed extends HTMLElement {
     if (!this.tools$.hidden) return this.closeTools()
     const current = this.getAttribute("tool-id") ?? ""
     const tools = toolsFor(this.docType ?? "")
-    const list = el("div", { class: "rich-embed-tool-list" })
+    const list = el("div", { class: "lush-embed-tool-list" })
 
     const choose = id => {
       this.closeTools()
       // The element doesn't own the document; the editor listens for this.
       this.dispatchEvent(
-        new CustomEvent("rich-embed-tool", {
+        new CustomEvent("lush-embed-tool", {
           detail: { toolId: id || null },
           bubbles: true,
           composed: true,
@@ -252,7 +259,7 @@ class RichEmbed extends HTMLElement {
     }
 
     const search = el("input", {
-      class: "rich-embed-tool-search",
+      class: "lush-embed-tool-search",
       type: "text",
       placeholder: "Tool id…",
       value: current,
@@ -262,7 +269,7 @@ class RichEmbed extends HTMLElement {
         if (event.key !== "Enter") return
         event.preventDefault()
         const typed = search.value.trim()
-        const shown = list.querySelector(".rich-embed-tool")
+        const shown = list.querySelector(".lush-embed-tool")
         // Enter takes the first match, or the id as typed.
         choose(shown && shown.dataset.tool.startsWith(typed) ? shown.dataset.tool : typed)
       },
@@ -279,7 +286,7 @@ class RichEmbed extends HTMLElement {
         el(
           "button",
           {
-            class: current ? "rich-embed-tool" : "rich-embed-tool current",
+            class: current ? "lush-embed-tool" : "lush-embed-tool current",
             type: "button",
             "data-tool": "",
             onclick: () => choose(""),
@@ -290,18 +297,18 @@ class RichEmbed extends HTMLElement {
           el(
             "button",
             {
-              class: tool.id === current ? "rich-embed-tool current" : "rich-embed-tool",
+              class: tool.id === current ? "lush-embed-tool current" : "lush-embed-tool",
               type: "button",
               "data-tool": tool.id,
               onclick: () => choose(tool.id),
             },
             el("span", {}, tool.name ?? tool.id),
-            el("span", { class: "rich-embed-tool-id" }, tool.id),
+            el("span", { class: "lush-embed-tool-id" }, tool.id),
           ),
         ),
       )
       if (!matching.length && query) {
-        list.append(el("div", { class: "rich-embed-tool-hint" }, "↵ to use this id"))
+        list.append(el("div", { class: "lush-embed-tool-hint" }, "↵ to use this id"))
       }
     }
 
@@ -335,7 +342,7 @@ class RichEmbed extends HTMLElement {
     this.title$.textContent = "…"
     this.kind$.textContent = ""
     this.body$.replaceChildren(
-      el("div", { class: "rich-embed-loading" }, svg(`<circle cx="8" cy="8" r="5"/>`)),
+      el("div", { class: "lush-embed-loading" }, svg(`<circle cx="8" cy="8" r="5"/>`)),
     )
     if (!url) return
 
@@ -351,15 +358,15 @@ class RichEmbed extends HTMLElement {
     // chrome to open. Anything else is a document, and gets the window. Asking
     // for a tool by id is asking for the document, so that wins.
     const inline = this.getAttribute("tool-id") ? null : media
-    this.dataset.kind = media || type || "document"
-    if (inline) this.setAttribute("media", inline)
-    else this.removeAttribute("media")
+    this.window$.className = inline
+      ? `lush-embed-window media ${inline}`
+      : "lush-embed-window"
     if (this.rendered !== url) return
 
     this.body$.replaceChildren(
       inline
         ? el(inline === "image" ? "img" : inline, {
-            class: `rich-embed-${inline}`,
+            class: `lush-embed-${inline}`,
             src: automergeUrlToServiceWorkerUrl(url),
             ...(inline === "image" ? {} : { controls: true, preload: "metadata" }),
           })
@@ -372,5 +379,5 @@ class RichEmbed extends HTMLElement {
 }
 
 export function defineEmbedElement() {
-  if (!customElements.get(NAME)) customElements.define(NAME, RichEmbed)
+  if (!customElements.get(NAME)) customElements.define(NAME, LushEmbed)
 }
