@@ -1,8 +1,18 @@
 // A floating bar over the selection, in place of a permanent toolbar.
 import { Wordgard } from "wordgard/editor"
 import { Command, toggleMark, toggleEmphasis, toggleStrong } from "wordgard/command"
-import { Code, Emphasis, Link, Strong } from "wordgard/types"
+import {
+  Code,
+  Emphasis,
+  Link,
+  Strikethrough,
+  Strong,
+  Subscript,
+  Superscript,
+  Underline,
+} from "wordgard/types"
 import { HIGHLIGHTS, highlightAt, highlightChanges } from "./highlight.js"
+import { toggleBaseline } from "./baseline.js"
 import { CellSelection } from "wordgard/table"
 import { inTable, tableMenu } from "./tables.js"
 import { el, svg } from "./dom.js"
@@ -41,11 +51,39 @@ const ACTIONS = [
     run: wg => Command.dispatch(wg, toggleEmphasis),
   },
   {
+    id: "underline",
+    label: "U",
+    title: "Underline",
+    active: state => Underline.isInSet(marksAt(state)),
+    run: wg => Command.dispatch(wg, toggleMark, Underline),
+  },
+  {
+    id: "strikethrough",
+    label: "S",
+    title: "Strikethrough",
+    active: state => Strikethrough.isInSet(marksAt(state)),
+    run: wg => Command.dispatch(wg, toggleMark, Strikethrough),
+  },
+  {
     id: "code",
     label: "‹›",
     title: "Code",
     active: state => Code.isInSet(marksAt(state)),
     run: wg => Command.dispatch(wg, toggleMark, Code),
+  },
+  {
+    id: "superscript",
+    label: "x²",
+    title: "Superscript",
+    active: state => Superscript.isInSet(marksAt(state)),
+    run: wg => toggleBaseline(wg, Superscript),
+  },
+  {
+    id: "subscript",
+    label: "x₂",
+    title: "Subscript",
+    active: state => Subscript.isInSet(marksAt(state)),
+    run: wg => toggleBaseline(wg, Subscript),
   },
 ]
 

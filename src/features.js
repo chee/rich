@@ -14,6 +14,7 @@ import { slashCommands, slashMenu } from "./slash.js"
 import { blockTypes } from "./block-types.js"
 import { richKeys } from "./keys.js"
 import { htmlEditing } from "./html-block.js"
+import { todoLists } from "./todo-list.js"
 import { tableEditing } from "./tables.js"
 import { listIndent } from "./lists.js"
 import { getDndPayload, hasDocumentDrag } from "./dnd.js"
@@ -124,6 +125,7 @@ export const featurePlugins = [
   feature("blocks", "Block handles", "core", context => blockGutter(context)),
   feature("tables", "Table editing", "core", () => tableEditing()),
   feature("lists", "List indenting", "core", () => listIndent()),
+  feature("todo", "To-do checkboxes", "core", () => todoLists()),
   feature("images", "Image paste & drop", "core", () => imageDropAndPaste()),
   feature("embed", "Document embeds", "core", embedExtensions),
   feature("placeholder", "Placeholder", "core", () => placeholder(opening())),

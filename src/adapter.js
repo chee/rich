@@ -6,15 +6,21 @@ import {
   HeaderCell,
   Image,
   ImageAlt,
+  ListItem,
   RowSpan,
+  Strikethrough,
+  Subscript,
+  Superscript,
   Table,
   TableRow,
+  Underline,
 } from "wordgard/types"
 import { SchemaAdapter, basicSchemaSpec } from "./wordgard/index.js"
 import { srcForImage } from "./files.js"
 import { Highlight, highlightParsers } from "./highlight.js"
 import { LOGLINE_FACTS, Logline } from "./logline.js"
 import { HtmlBlock } from "./html-block.js"
+import { Checked, TodoList, checkedParsers } from "./todo-list.js"
 
 // An embedded Patchwork document. Its parameter is the document's
 // AutomergeUrl; its shape renders `<rich-embed doc-url="…">` (see
@@ -93,6 +99,9 @@ const numberMark = {
 
 const isImageBlock = block => block.node === Image
 const withoutImage = list => list.filter(entry => !isImageBlock(entry))
+// The basic mapping knows list items in bullet and ordered lists; ours are
+// also in todo lists, where they carry a `checked` attr.
+const withoutListItem = list => list.filter(entry => entry.node !== ListItem)
 
 // The schema adapter for the "rich" tool: the basic Automerge rich-text
 // mapping, with our image node in place of the built-in one, plus the embed
@@ -115,9 +124,27 @@ export const richAdapter = new SchemaAdapter({
     Embed,
     Logline,
     HtmlBlock,
+    TodoList,
+    Checked,
+    Underline,
+    Strikethrough,
+    Superscript,
+    Subscript,
   ],
   blocks: [
-    ...withoutImage(basicSchemaSpec.blocks),
+    ...withoutListItem(withoutImage(basicSchemaSpec.blocks)),
+    {
+      node: ListItem,
+      within: {
+        BulletList: "unordered-list-item",
+        OrderedList: "ordered-list-item",
+        TodoList: "todo-list-item",
+      },
+      attrs: {
+        fromAutomerge: block => ({ marks: checkedParsers.fromAutomerge(block) }),
+        fromWordgard: checkedParsers.fromWordgard,
+      },
+    },
     {
       node: RichImage,
       block: "image",
@@ -211,5 +238,9 @@ export const richAdapter = new SchemaAdapter({
     // Highlights are stored by NAME ("pink"), so the theme decides what pink
     // looks like.
     { mark: Highlight, name: "highlight", parsers: highlightParsers },
+    { mark: Underline, name: "underline" },
+    { mark: Strikethrough, name: "strikethrough" },
+    { mark: Superscript, name: "superscript" },
+    { mark: Subscript, name: "subscript" },
   ],
 })

@@ -12,9 +12,10 @@ import {
   OrderedList,
   Paragraph,
 } from "wordgard/types"
+import { TodoList } from "./todo-list.js"
 
-// `key` is a wordgard key name, bound by keys.js. The names match chee's Swift
-// notes app, so the same fingers work in both.
+// `key` is a wordgard key name (or a list of them), bound by keys.js. The
+// names match chee's Swift notes app, so the same fingers work in both.
 const blockType = (id, name, icon, keywords, { active, apply, key }) => ({
   type: "rich:block",
   id,
@@ -50,7 +51,7 @@ export const blockTypes = [
     // than staying wrapped in something that is not body text.
     apply: wg => {
       Command.dispatch(wg, setTextblockType, Paragraph)
-      while (Command.dispatch(wg, unwrapBlock, [Blockquote, BulletList, OrderedList]));
+      while (Command.dispatch(wg, unwrapBlock, [Blockquote, BulletList, OrderedList, TodoList]));
     },
     key: "Mod-Shift-b",
   }),
@@ -71,6 +72,11 @@ export const blockTypes = [
     active: state => Boolean(state.sel.head.matchingParent(plot => plot.tag.type === OrderedList)),
     apply: wg => Command.dispatch(wg, toggleList, OrderedList.of(1)),
     key: "Mod-Shift-7",
+  }),
+  blockType("todo", "To-do List", "todo", ["task", "checkbox", "check", "tick"], {
+    active: state => insideList(state, TodoList),
+    apply: wg => Command.dispatch(wg, toggleList, TodoList),
+    key: "Mod-Shift-0",
   }),
   blockType("quote", "Quote", "quote", ["blockquote", "citation"], {
     active: state => insideList(state, Blockquote),

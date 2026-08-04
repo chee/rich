@@ -13,6 +13,10 @@ import {
   emphasis,
   code,
   link,
+  underline,
+  strikethrough,
+  superscript,
+  subscript,
 } from "wordgard/schema"
 import { GardState } from "wordgard/state"
 import { tables } from "wordgard/table"
@@ -23,6 +27,7 @@ import { richAdapter, Column, Columns, Embed, EmbedTool, RichImage } from "./ada
 import { Highlight } from "./highlight.js"
 import { Logline } from "./logline.js"
 import { HtmlBlock } from "./html-block.js"
+import { Checked, TodoList } from "./todo-list.js"
 import { featureExtensions, richPlugins } from "./features.js"
 import { docSelector, expandSelector } from "./plugin-catalog.js"
 import "./rich.css"
@@ -91,6 +96,8 @@ export default function RichTool(handle, element) {
         EmbedTool,
         Logline,
         HtmlBlock,
+        TodoList,
+        Checked,
       ]),
 
       // Editing behaviour for exactly the node/mark types the adapter maps,
@@ -106,6 +113,10 @@ export default function RichTool(handle, element) {
       emphasis(),
       code(),
       link(),
+      underline(),
+      strikethrough(),
+      superscript(),
+      subscript(),
 
       // Tables: cells hold inline content, which is what the block encoding
       // can represent.

@@ -18,6 +18,11 @@ const ICONS = {
   table: `<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M2 6.5h12M2 10h12M6.5 6.5V13M10 6.5V13"/>`,
   plugins: `<path d="M6 2v3M10 2v3M4 5h8v4a4 4 0 01-8 0z"/><path d="M8 13v2"/>`,
   clock: `<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>`,
+  todo: `<rect x="2" y="2.5" width="5" height="5" rx="1"/><rect x="2" y="8.5" width="5" height="5" rx="1"/><path d="M3.2 5l1 1 1.6-1.8M9.5 5H14M9.5 11H14"/>`,
+  underline: `<path d="M4 3v5a4 4 0 008 0V3M3 14h10"/>`,
+  strikethrough: `<path d="M3 8h10M11.5 5c-.6-1.3-2-2-3.5-2-2 0-3.2 1-3.2 2.3 0 1 .6 1.7 1.7 2.2M4.5 11c.6 1.3 2 2 3.5 2 2.2 0 3.4-1 3.4-2.4 0-.8-.4-1.5-1.2-2"/>`,
+  superscript: `<path d="M2 12l5-7M7 12L2 5M11 6.5c0-1.6 2.5-1.6 2.5 0 0 1-2.5 1.6-2.5 3h2.6"/>`,
+  subscript: `<path d="M2 10l5-7M7 10L2 3M11 13c0-1.6 2.5-1.6 2.5 0 0 1-2.5 1.6-2.5 3h2.6"/>`,
 }
 
 // A built-in icon name, raw SVG markup from a contributed plugin, or the

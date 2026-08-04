@@ -152,6 +152,56 @@
   margin: 0;
 }
 
+/* A to-do list draws its own box in the space the marker would use. The item
+   carries `data-checked` when it is done — see todo-list.js, which turns a
+   click in that space into a change. */
+/* The padding is on the ITEM, not the list: the box has to sit inside the
+   item's own box for a click on it to land on the item. */
+.rich-tool .rich-page wg-content ul.rich-todo-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.rich-tool .rich-page wg-content ul.rich-todo-list > li {
+  position: relative;
+  padding-left: 1.6rem;
+}
+
+.rich-tool .rich-page wg-content ul.rich-todo-list > li::before {
+  content: "";
+  position: absolute;
+  left: 0.25rem;
+  top: 0.38em;
+  width: 0.85em;
+  height: 0.85em;
+  border: 1.5px solid var(--rich-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-checked]::before {
+  border-color: var(--rich-accent);
+  background: var(--rich-accent);
+}
+
+/* The tick: two strokes of the box's own border, rotated. */
+.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-checked]::after {
+  content: "";
+  position: absolute;
+  left: 0.48rem;
+  top: 0.52em;
+  width: 0.2em;
+  height: 0.45em;
+  border: solid var(--rich-fill);
+  border-width: 0 2px 2px 0;
+  rotate: 45deg;
+  pointer-events: none;
+}
+
+.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-checked] {
+  color: var(--rich-muted);
+}
+
 /* A list item holds block content, so each line is a paragraph inside the
    <li>; without this the browser's paragraph margins push the bullets apart. */
 .rich-tool .rich-page wg-content li > p,
@@ -439,6 +489,8 @@
 
 .rich-format-button[title="Bold"] { font-weight: 700; }
 .rich-format-button[title="Italic"] { font-style: italic; font-family: serif; }
+.rich-format-button[title="Underline"] { text-decoration: underline; }
+.rich-format-button[title="Strikethrough"] { text-decoration: line-through; }
 
 .rich-format-separator {
   width: 1px;

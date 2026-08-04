@@ -266,7 +266,7 @@ await page.keyboard.press("Escape")
   check(
     "the block-type menu lists every type",
     names.join(", ") ===
-      "Body, Title, Heading, Subheading, Bulleted List, Numbered List, Quote, Code",
+      "Body, Title, Heading, Subheading, Bulleted List, Numbered List, To-do List, Quote, Code",
     names.join(", "),
   )
   check(
@@ -750,6 +750,12 @@ await foreign.screenshot({
   await keys.keyboard.press("Meta+l")
   await keys.waitForTimeout(400)
   check("cmd-L inserts a logline", (await keys.$$("rich-logline")).length === 1)
+  // Cmd-L is the address bar in a real browser, so the same command answers to
+  // a key the page actually receives. (Headless has no address bar: this only
+  // proves the alias is bound, not that Cmd-L arrives.)
+  await keys.keyboard.press("Meta+Shift+l")
+  await keys.waitForTimeout(400)
+  check("cmd-shift-L does too", (await keys.$$("rich-logline")).length === 2)
   const stamp = await keys.evaluate(
     () => document.querySelector("rich-logline").shadowRoot.querySelector(".rich-logline")?.textContent,
   )
@@ -806,6 +812,102 @@ await foreign.screenshot({
     caret: "initial",
   })
   await keys.close()
+}
+
+// To-do lists: a third kind of list, whose items carry `checked`.
+{
+  const todo = await freshPage()
+  await todo.keyboard.press("Meta+Shift+B")
+  await todo.keyboard.type("[] milk", { delay: 25 })
+  await todo.waitForTimeout(300)
+  check("`[] ` starts a to-do list", (await todo.$$("ul.rich-todo-list > li")).length === 1)
+  await todo.keyboard.press("Enter")
+  await todo.keyboard.type("bread", { delay: 25 })
+  await todo.keyboard.press("Tab")
+  await todo.waitForTimeout(250)
+  check("to-do items nest", (await todo.$$("ul.rich-todo-list ul.rich-todo-list > li")).length === 1)
+
+  const box = await todo.locator("ul.rich-todo-list > li").first().boundingBox()
+  await todo.mouse.click(box.x + 8, box.y + 10)
+  await todo.waitForTimeout(300)
+  check(
+    "clicking the box checks the item",
+    (await todo.$$("ul.rich-todo-list > li[data-checked]")).length === 1,
+  )
+  const items = JSON.parse(await todo.evaluate(() => window.richDev.roundTrip().spans)).filter(
+    span => span.value?.type === "todo-list-item",
+  )
+  check(
+    "checked is a block attr",
+    items.length === 2 && items[0].value.attrs.checked === true && !items[1].value.attrs.checked,
+    JSON.stringify(items.map(item => item.value.attrs)),
+  )
+  const todoTrip = await todo.evaluate(() => window.richDev.roundTrip())
+  check("to-do lists round trip", todoTrip.live === todoTrip.rebuilt)
+  await todo.mouse.click(box.x + 8, box.y + 10)
+  await todo.waitForTimeout(250)
+  check(
+    "clicking it again unchecks it",
+    (await todo.$$("ul.rich-todo-list > li[data-checked]")).length === 0,
+  )
+  await todo.mouse.click(box.x + 60, box.y + 10)
+  await todo.waitForTimeout(200)
+  check(
+    "clicking the words does not check it",
+    (await todo.$$("ul.rich-todo-list > li[data-checked]")).length === 0,
+  )
+  await todo.mouse.click(box.x + 8, box.y + 10)
+  await todo.waitForTimeout(250)
+
+  // The four new marks, each with its own keybinding and its own bar button.
+  await todo.keyboard.press("Meta+Shift+B")
+  await todo.keyboard.type("plain words", { delay: 25 })
+  await todo.keyboard.down("Shift")
+  for (let i = 0; i < 5; i++) await todo.keyboard.press("ArrowLeft")
+  await todo.keyboard.up("Shift")
+  await todo.waitForTimeout(300)
+  const barNames = await todo.$$eval(".rich-format-button", nodes => nodes.map(node => node.title))
+  check(
+    "the bar offers the new marks",
+    ["Underline", "Strikethrough", "Superscript", "Subscript"].every(name =>
+      barNames.includes(name),
+    ),
+    barNames.join(", "),
+  )
+  for (const [key, tag] of [
+    ["Meta+u", "u"],
+    ["Meta+/", "s"],
+    ["Meta+.", "sup"],
+  ]) {
+    await todo.keyboard.press(key)
+    await todo.waitForTimeout(200)
+    check(`${key} makes a <${tag}>`, (await todo.$$(`wg-content ${tag}`)).length === 1)
+  }
+  // One baseline at a time: subscript takes superscript off. (Cmd-, is the
+  // browser's own, so the page gets the mark on Cmd-Shift-, instead.)
+  await todo.keyboard.press("Meta+Shift+,")
+  await todo.waitForTimeout(200)
+  check(
+    "subscript replaces superscript",
+    (await todo.$$("wg-content sub")).length === 1 && (await todo.$$("wg-content sup")).length === 0,
+  )
+  const marked = JSON.parse(await todo.evaluate(() => window.richDev.roundTrip().spans)).find(
+    span => span.marks?.underline,
+  )
+  check(
+    "the marks are stored by name",
+    marked?.marks?.strikethrough === true &&
+      marked?.marks?.subscript === true &&
+      marked?.marks?.superscript === undefined,
+    JSON.stringify(marked?.marks),
+  )
+  const markTrip = await todo.evaluate(() => window.richDev.roundTrip())
+  check("the marks round trip", markTrip.live === markTrip.rebuilt)
+  await todo.screenshot({
+    path: new URL("./shots/09-todo.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+  await todo.close()
 }
 
 await browser.close()

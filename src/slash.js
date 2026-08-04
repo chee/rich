@@ -20,8 +20,9 @@ import { icon } from "./icons.js"
 const images = () => import("./images.js")
 const pluginsPanel = () => import("./plugins-panel.js")
 
-// `key` is a wordgard key name; keys.js binds it. It stays a string so the
-// whole descriptor is still postMessage-able.
+// `key` is a wordgard key name, or a list of them when the first is one the
+// browser keeps for itself; keys.js binds them. Strings, so the whole
+// descriptor is still postMessage-able.
 const command = (id, name, group, icon, keywords, run, key) => ({
   type: "rich:slash",
   id,
@@ -42,7 +43,7 @@ export const slashCommands = [
     "image",
     ["picture", "photo", "upload", "file"],
     async wg => (await images()).uploadImage(wg),
-    "Mod-Shift-a",
+    ["Mod-Shift-a", "Mod-Alt-a"],
   ),
   command(
     "image-url",
@@ -59,7 +60,7 @@ export const slashCommands = [
     "clock",
     ["time", "date", "stamp", "context", "where", "when"],
     insertLogline,
-    "Mod-l",
+    ["Mod-l", "Mod-Shift-l"],
   ),
   command(
     "html",
