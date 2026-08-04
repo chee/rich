@@ -13,6 +13,8 @@ import {
 import { SchemaAdapter, basicSchemaSpec } from "./wordgard/index.js"
 import { srcForImage } from "./files.js"
 import { Highlight, highlightParsers } from "./highlight.js"
+import { LOGLINE_FACTS, Logline } from "./logline.js"
+import { HtmlBlock } from "./html-block.js"
 
 // An embedded Patchwork document. Its parameter is the document's
 // AutomergeUrl; its shape renders `<rich-embed doc-url="…">` (see
@@ -111,6 +113,8 @@ export const richAdapter = new SchemaAdapter({
     Highlight,
     EmbedTool,
     Embed,
+    Logline,
+    HtmlBlock,
   ],
   blocks: [
     ...withoutImage(basicSchemaSpec.blocks),
@@ -157,6 +161,44 @@ export const richAdapter = new SchemaAdapter({
           const attrs = { url: node.param }
           const tool = node.mark(EmbedTool)
           if (tool != null) attrs.tool = tool
+          return attrs
+        },
+      },
+    },
+    {
+      node: HtmlBlock,
+      block: "html",
+      isEmbed: true,
+      attrs: {
+        fromAutomerge: block => ({ param: amString(block.attrs.html) ?? "" }),
+        fromWordgard: node => ({ html: new am.ImmutableString(node.param) }),
+      },
+    },
+    // A logline. Each fact is its own attr, the way the Swift app writes them;
+    // the leaf carries them as JSON. Facts we don't recognise are dropped
+    // rather than mangled.
+    {
+      node: Logline,
+      block: "context",
+      isEmbed: true,
+      attrs: {
+        fromAutomerge: block => {
+          const facts = {}
+          for (const name of LOGLINE_FACTS) {
+            const value = block.attrs[name]
+            if (value == null) continue
+            facts[name] = typeof value === "number" ? value : amString(value)
+          }
+          return { param: JSON.stringify(facts) }
+        },
+        fromWordgard: node => {
+          const facts = JSON.parse(node.param || "{}")
+          const attrs = {}
+          for (const name of LOGLINE_FACTS) {
+            const value = facts[name]
+            if (value == null) continue
+            attrs[name] = typeof value === "number" ? value : new am.ImmutableString(String(value))
+          }
           return attrs
         },
       },

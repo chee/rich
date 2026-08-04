@@ -68,6 +68,8 @@ async function freshPage() {
   await fresh.goto(url)
   await fresh.waitForSelector("wg-content")
   await fresh.click("wg-content")
+  // Typing in the same tick as the click loses the first keystroke.
+  await fresh.waitForTimeout(200)
   return fresh
 }
 
@@ -144,6 +146,19 @@ await page.mouse.move(gutterBox.x + gutterBox.width / 2, gutterBox.y + gutterBox
 await page.waitForTimeout(200)
 check("gutter stays reachable", await page.isVisible(".rich-gutter.visible"))
 await shot("02-gutter")
+
+// The column keeps room for the handles however narrow the tool gets.
+const narrow = await browser.newPage({ viewport: { width: 420, height: 400 } })
+await narrow.goto(url)
+await narrow.waitForSelector("wg-content")
+await narrow.click("wg-content")
+await narrow.waitForTimeout(200)
+await narrow.keyboard.type("hello", { delay: 20 })
+await narrow.locator("wg-content > *").first().hover()
+await narrow.waitForTimeout(200)
+const narrowGutter = await narrow.locator(".rich-gutter").boundingBox()
+check("the handles fit at a narrow width", narrowGutter.x >= 0, JSON.stringify(narrowGutter))
+await narrow.close()
 
 // A real drag of the grip, with the mouse.
 async function dragBlockTo(targetSelector, atBottom = false) {
@@ -702,6 +717,96 @@ await foreign.screenshot({
   path: new URL("./shots/06-foreign.png", import.meta.url).pathname,
   caret: "initial",
 })
+
+// A new note opens on its Title, and the block shortcuts (the same keys as the
+// Swift app) say what each line is.
+{
+  const keys = await freshPage()
+  const first = () => keys.$eval("wg-content > *", node => node.tagName)
+  check("a new note opens on its Title", (await first()) === "H1")
+  await keys.keyboard.type("a line", { delay: 30 })
+  // Each from body text: a quote or a list wraps the block it is applied to,
+  // so running them in a chain would nest rather than convert.
+  for (const [key, tag] of [
+    ["Meta+Shift+H", "H2"],
+    ["Meta+Shift+J", "H3"],
+    ["Meta+Shift+T", "H1"],
+    ["Meta+Shift+9", "BLOCKQUOTE"],
+    ["Meta+Shift+8", "UL"],
+    ["Meta+Shift+7", "OL"],
+    ["Meta+Shift+M", "PRE"],
+  ]) {
+    await keys.keyboard.press("Meta+Shift+B")
+    await keys.waitForTimeout(120)
+    check("Meta+Shift+B makes a P", (await first()) === "P", await first())
+    await keys.keyboard.press(key)
+    await keys.waitForTimeout(150)
+    check(`${key} makes a ${tag}`, (await first()) === tag, await first())
+  }
+
+  // A logline: a `context` block that renders the moment it was written.
+  await keys.keyboard.press("Meta+Shift+B")
+  await keys.waitForTimeout(150)
+  await keys.keyboard.press("Meta+l")
+  await keys.waitForTimeout(400)
+  check("cmd-L inserts a logline", (await keys.$$("rich-logline")).length === 1)
+  const stamp = await keys.evaluate(
+    () => document.querySelector("rich-logline").shadowRoot.querySelector(".rich-logline")?.textContent,
+  )
+  check("the logline says the time", /\d/.test(stamp ?? ""), stamp)
+  const logged = JSON.parse(await keys.evaluate(() => window.richDev.roundTrip().spans)).find(
+    span => span.value?.type === "context",
+  )
+  check(
+    "it is stored as a context block with a timestamp",
+    logged?.value?.isEmbed === true && Boolean(String(logged?.value?.attrs?.ts ?? "").length),
+    JSON.stringify(logged),
+  )
+  const loglineTrip = await keys.evaluate(() => window.richDev.roundTrip())
+  check("the logline round trips", loglineTrip.live === loglineTrip.rebuilt)
+  await keys.screenshot({
+    path: new URL("./shots/07-logline.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+
+  // An HTML block renders its source in a sandboxed frame, and the pencil
+  // edits it.
+  await keys.keyboard.press("Meta+Alt+h")
+  await keys.waitForTimeout(400)
+  check("cmd-opt-H inserts an HTML block", (await keys.$$("rich-html")).length === 1)
+  check(
+    "it renders in a sandboxed frame",
+    await keys.evaluate(() => {
+      const frame = document.querySelector("rich-html").shadowRoot.querySelector("iframe")
+      return frame?.getAttribute("sandbox") === "allow-scripts" && frame.srcdoc.includes("hello")
+    }),
+  )
+  await keys.evaluate(() => document.querySelector("rich-html").shadowRoot.querySelector("button").click())
+  await keys.waitForTimeout(250)
+  check("the pencil opens the source", await keys.isVisible(".rich-html-dialog"))
+  await keys.fill(".rich-html-dialog textarea", "<h1>hi</h1>")
+  await keys.click(".rich-html-dialog button[type=submit]")
+  await keys.waitForTimeout(300)
+  check(
+    "editing rewrites the block",
+    (await keys.$eval("rich-html", node => node.getAttribute("source"))) === "<h1>hi</h1>",
+  )
+  const htmlSpan = JSON.parse(await keys.evaluate(() => window.richDev.roundTrip().spans)).find(
+    span => span.value?.type === "html",
+  )
+  check(
+    "it is stored as an html block",
+    htmlSpan?.value?.isEmbed === true && String(htmlSpan?.value?.attrs?.html).includes("<h1>"),
+    JSON.stringify(htmlSpan),
+  )
+  const htmlTrip = await keys.evaluate(() => window.richDev.roundTrip())
+  check("the html block round trips", htmlTrip.live === htmlTrip.rebuilt)
+  await keys.screenshot({
+    path: new URL("./shots/08-html.png", import.meta.url).pathname,
+    caret: "initial",
+  })
+  await keys.close()
+}
 
 await browser.close()
 console.log(problems.length ? `\n${problems.length} failing: ${problems.join(", ")}` : "\nall good")

@@ -15,6 +15,9 @@
     --rich-sunk: color-mix(in oklch, var(--editor-fill, white), var(--editor-line, black) 6%);
     --rich-shadow: 0 8px 24px -8px color-mix(in oklch, var(--editor-line, black) 35%, transparent);
     --rich-measure: 42rem;
+    /* Two 22px handles, the 2px between them, the 8px they stand off the text
+       by, and 8px of air: the room the block gutter needs beside the column. */
+    --rich-gutter: 62px;
   }
 }
 
@@ -50,7 +53,7 @@
    wordgard measures the cursor of an empty block from the content box's own
    origin and lands in the wrong place when that box is offset. */
 .rich-tool .rich-page wg-content {
-  padding: 3rem max(1.5rem, calc((100% - var(--rich-measure)) / 2)) 40vh;
+  padding: 3rem max(var(--rich-gutter), calc((100% - var(--rich-measure)) / 2)) 40vh;
   font-size: 1.0625rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -71,15 +74,8 @@
   margin: 0.7em 0;
 }
 
-/* Notes-style: the first line of the note is its title — but only when it is
-   an ordinary paragraph; a note that opens with a list or a heading keeps that
-   block's own styling. */
-.rich-tool .rich-page wg-content > p:first-child {
-  font-size: 1.75rem;
-  line-height: 1.25;
-  font-weight: 650;
-  letter-spacing: -0.015em;
-  margin-bottom: 1rem;
+.rich-tool .rich-page wg-content > :first-child {
+  margin-top: 0;
 }
 
 .rich-tool .rich-page wg-content h1,
@@ -128,6 +124,28 @@
 .rich-tool .rich-page wg-content ul,
 .rich-tool .rich-page wg-content ol {
   padding-left: 1.4rem;
+}
+
+/* Depth reads in the marker: 1. then a. then i., then round again. Browsers
+   already cycle bullets, but they number every level the same way. */
+.rich-tool .rich-page wg-content ol ol {
+  list-style-type: lower-alpha;
+}
+
+.rich-tool .rich-page wg-content ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.rich-tool .rich-page wg-content ol ol ol ol {
+  list-style-type: decimal;
+}
+
+.rich-tool .rich-page wg-content ol ol ol ol ol {
+  list-style-type: lower-alpha;
+}
+
+.rich-tool .rich-page wg-content ol ol ol ol ol ol {
+  list-style-type: lower-roman;
 }
 
 .rich-tool .rich-page wg-content li {

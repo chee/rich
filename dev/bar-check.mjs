@@ -36,7 +36,7 @@ const barBox = async () => {
 // clicking there selects nothing.
 async function selectAt(index, side) {
   const text = await page.evaluate(i => {
-    const node = document.querySelectorAll("wg-content > p")[i - 1].firstChild
+    const node = document.querySelectorAll("wg-content > *")[i - 1].firstChild
     if (!node) return null
     const range = document.createRange()
     range.selectNodeContents(node)
@@ -60,7 +60,7 @@ const scrollTop = to => page.evaluate(y => document.querySelector("wg-scroller")
 
 // The topmost and bottommost lines currently on screen.
 const visibleLines = () =>
-  page.$$eval("wg-content > p", nodes =>
+  page.$$eval("wg-content > *", nodes =>
     nodes
       .map((n, i) => ({ index: i + 1, box: n.getBoundingClientRect() }))
       .filter(l => l.box.top >= 0 && l.box.bottom <= window.innerHeight)
@@ -96,7 +96,7 @@ for (const scroll of [0, 220]) {
 const atTop = async () => {
   for (let scroll = 200; scroll < 320; scroll += 4) {
     await scrollTop(scroll)
-    const found = await page.$$eval("wg-content > p", nodes =>
+    const found = await page.$$eval("wg-content > *", nodes =>
       nodes.findIndex(n => {
         const box = n.getBoundingClientRect()
         return box.top >= 0 && box.top < 6
@@ -111,7 +111,7 @@ check("found a line against the top edge", flush != null)
 if (flush != null) {
   await selectAt(flush, "left")
   const bar = await barBox()
-  const line = await page.locator(`wg-content > p:nth-child(${flush})`).boundingBox()
+  const line = await page.locator(`wg-content > :nth-child(${flush})`).boundingBox()
   check("no room above: the bar flips below", bar.top > line.y, `bar ${bar.top} vs line ${line.y}`)
   check("flipped bar is still on screen", inside(bar), JSON.stringify(bar))
   await page.screenshot({ path: new URL(`./shots/bar-flip.png`, import.meta.url).pathname, caret: "initial" })

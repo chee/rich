@@ -1,0 +1,26 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>dist harness</title>
+<script type="importmap">
+{"imports": {
+  "@automerge/automerge": "./stubs.js",
+  "@automerge/automerge-repo": "./stubs.js",
+  "@inkandswitch/patchwork-elements": "./stubs.js",
+  "@inkandswitch/patchwork-filesystem": "./stubs.js",
+  "@inkandswitch/patchwork-plugins": "./stubs.js"
+}}
+</script>
+<div id="app"></div>
+<script type="module">
+window.result = (async () => {
+  const { plugins } = await import("../../dist/index.js")
+  const tool = await plugins.find(p => p.type === "patchwork:tool").load()
+  const handle = { doc: () => ({ content: "", plugins: [] }), on() {}, off() {}, url: "automerge:x" }
+  try {
+    tool(handle, document.getElementById("app"))
+    return "rendered"
+  } catch (error) {
+    return `${error.name}: ${error.message}`
+  }
+})()
+</script>

@@ -44,7 +44,7 @@ await page.keyboard.press("Enter")
 await type("two")
 await page.keyboard.press("Tab")
 await page.waitForTimeout(150)
-check("Tab nests the item", (await shape()) === "p[title]ul[li[p[one]ul[li[p[two]]]]]", await shape())
+check("Tab nests the item", (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two]]]]]", await shape())
 
 await type("!")
 check("the cursor stays in the nested item", (await shape()).includes("two!"), await shape())
@@ -54,7 +54,7 @@ await type("three")
 await page.waitForTimeout(150)
 check(
   "Enter keeps the new item at the same level",
-  (await shape()) === "p[title]ul[li[p[one]ul[li[p[two!]]li[p[three]]]]]",
+  (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]li[p[three]]]]]",
   await shape(),
 )
 
@@ -71,7 +71,7 @@ await page.keyboard.press("Shift+Tab")
 await page.waitForTimeout(150)
 check(
   "Shift-Tab un-nests the last item",
-  (await shape()) === "p[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
+  (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
   await shape(),
 )
 
@@ -79,7 +79,7 @@ await page.keyboard.press("Shift+Tab")
 await page.waitForTimeout(150)
 check(
   "Shift-Tab stops at the top level",
-  (await shape()) === "p[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
+  (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
   await shape(),
 )
 
@@ -88,7 +88,7 @@ await page.keyboard.press("Tab")
 await page.waitForTimeout(150)
 check(
   "Tab does nothing to the first item",
-  (await shape()) === "p[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
+  (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
   await shape(),
 )
 
@@ -101,6 +101,8 @@ await second.goto(url)
 await second.waitForSelector("wg-content")
 await second.click("wg-content")
 await second.waitForTimeout(300)
+// A note opens on its Title; this list is about lists, so start on body text.
+await second.keyboard.press("Meta+Shift+B")
 await second.keyboard.type("- a", { delay: 30 })
 await second.keyboard.press("Enter")
 await second.keyboard.type("b", { delay: 30 })

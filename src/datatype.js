@@ -1,6 +1,6 @@
 import * as am from "@automerge/automerge"
 import { spansFromDoc } from "./wordgard/index.js"
-import { Paragraph } from "wordgard/types"
+import { Heading } from "wordgard/types"
 import { richAdapter } from "./adapter.js"
 import { builtinFullIds } from "./plugin-catalog.js"
 
@@ -13,10 +13,10 @@ export const RichDatatype = {
     // The enabled full-tier plugin ids. Core-tier plugins are always on; the
     // `/plugins` command edits this array.
     doc.plugins = builtinFullIds()
-    // Seed a single empty paragraph so every peer starts from the same
-    // block structure (avoids two peers concurrently creating a first
-    // paragraph).
-    const seed = richAdapter.schema.doc([Paragraph.create([])])
+    // Seed a single empty block so every peer starts from the same block
+    // structure (avoids two peers concurrently creating a first block). It is a
+    // Title so a new note opens ready for one — nothing keeps it that way.
+    const seed = richAdapter.schema.doc([Heading.of(1).create([])])
     am.updateSpans(
       doc,
       ["content"],

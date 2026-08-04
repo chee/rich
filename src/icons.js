@@ -17,6 +17,7 @@ const ICONS = {
   columns3: `<rect x="1.5" y="3" width="3.5" height="10" rx="1"/><rect x="6.25" y="3" width="3.5" height="10" rx="1"/><rect x="11" y="3" width="3.5" height="10" rx="1"/>`,
   table: `<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M2 6.5h12M2 10h12M6.5 6.5V13M10 6.5V13"/>`,
   plugins: `<path d="M6 2v3M10 2v3M4 5h8v4a4 4 0 01-8 0z"/><path d="M8 13v2"/>`,
+  clock: `<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>`,
 }
 
 // A built-in icon name, raw SVG markup from a contributed plugin, or the

@@ -10,6 +10,8 @@ import { GardState, Transaction } from "wordgard/state"
 import { Command, insertText } from "wordgard/command"
 import { Cell, CodeBlock, HeaderCell, Paragraph, Table, TableRow } from "wordgard/types"
 import { Column, Columns } from "./adapter.js"
+import { insertLogline } from "./logline.js"
+import { insertHtmlBlock } from "./html-block.js"
 import { el } from "./dom.js"
 import { icon } from "./icons.js"
 
@@ -18,7 +20,9 @@ import { icon } from "./icons.js"
 const images = () => import("./images.js")
 const pluginsPanel = () => import("./plugins-panel.js")
 
-const command = (id, name, group, icon, keywords, run) => ({
+// `key` is a wordgard key name; keys.js binds it. It stays a string so the
+// whole descriptor is still postMessage-able.
+const command = (id, name, group, icon, keywords, run, key) => ({
   type: "rich:slash",
   id,
   name,
@@ -27,11 +31,18 @@ const command = (id, name, group, icon, keywords, run) => ({
   keywords,
   tier: "core",
   run,
+  key,
 })
 
 export const slashCommands = [
-  command("image", "Image", "Media", "image", ["picture", "photo", "upload", "file"], async wg =>
-    (await images()).uploadImage(wg),
+  command(
+    "image",
+    "Image",
+    "Media",
+    "image",
+    ["picture", "photo", "upload", "file"],
+    async wg => (await images()).uploadImage(wg),
+    "Mod-Shift-a",
   ),
   command(
     "image-url",
@@ -41,14 +52,44 @@ export const slashCommands = [
     ["picture", "web", "link"],
     insertImageFromUrl,
   ),
-  command("columns", "2 columns", "Layout", "columns", ["side", "split", "row"], wg =>
-    insertColumns(wg, 2),
+  command(
+    "logline",
+    "Logline",
+    "Note",
+    "clock",
+    ["time", "date", "stamp", "context", "where", "when"],
+    insertLogline,
+    "Mod-l",
+  ),
+  command(
+    "html",
+    "HTML",
+    "Media",
+    "code",
+    ["markup", "web", "iframe", "embed"],
+    insertHtmlBlock,
+    "Mod-Alt-h",
+  ),
+  command(
+    "columns",
+    "2 columns",
+    "Layout",
+    "columns",
+    ["side", "split", "row"],
+    wg => insertColumns(wg, 2),
+    "Mod-Alt-2",
   ),
   command("columns-3", "3 columns", "Layout", "columns3", ["side", "split", "row"], wg =>
     insertColumns(wg, 3),
   ),
-  command("table", "Table", "Layout", "table", ["grid", "rows", "cells"], wg =>
-    insertTable(wg, 3, 3),
+  command(
+    "table",
+    "Table",
+    "Layout",
+    "table",
+    ["grid", "rows", "cells"],
+    wg => insertTable(wg, 3, 3),
+    "Mod-Alt-t",
   ),
   {
     type: "rich:slash",

@@ -18,7 +18,7 @@ export const plugins = [
     id: "rich",
     name: "Rich",
     icon: "FileText",
-    supportedDatatypes: ["rich"],
+    supportedDatatypes: ["rich", "lush"],
     async load() {
       return (await import("./tool.js")).default
     },

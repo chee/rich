@@ -12,6 +12,8 @@ import { formatBar } from "./format-bar.js"
 import { imageDropAndPaste } from "./images.js"
 import { slashCommands, slashMenu } from "./slash.js"
 import { blockTypes } from "./block-types.js"
+import { richKeys } from "./keys.js"
+import { htmlEditing } from "./html-block.js"
 import { tableEditing } from "./tables.js"
 import { listIndent } from "./lists.js"
 import { getDndPayload, hasDocumentDrag } from "./dnd.js"
@@ -101,6 +103,22 @@ const typographyRules = [
   InputRule.define({ expr: /'$/, apply: "’" }),
 ]
 
+// An empty note offers you an opening line. Usually the fairytale one.
+const OPENINGS = [
+  "Howdy, partner…",
+  "Call me Ishmael…",
+  "Once upon a time there were four little Rabbits…",
+  "The story so far…",
+  "It was a queer, sultry summer…",
+  "I write this sitting in the kitchen sink…",
+  "It was the best of times, it was the worst of times…",
+]
+
+const opening = () =>
+  Math.random() < 0.6
+    ? "Once upon a time…"
+    : OPENINGS[Math.floor(Math.random() * OPENINGS.length)]
+
 export const featurePlugins = [
   feature("slash", "Slash menu", "core", context => slashMenu(context)),
   feature("blocks", "Block handles", "core", context => blockGutter(context)),
@@ -108,7 +126,9 @@ export const featurePlugins = [
   feature("lists", "List indenting", "core", () => listIndent()),
   feature("images", "Image paste & drop", "core", () => imageDropAndPaste()),
   feature("embed", "Document embeds", "core", embedExtensions),
-  feature("placeholder", "Placeholder", "core", () => placeholder("Start writing…")),
+  feature("placeholder", "Placeholder", "core", () => placeholder(opening())),
+  feature("keys", "Keyboard shortcuts", "core", context => richKeys(context)),
+  feature("html", "HTML blocks", "core", () => htmlEditing()),
   feature("format-bar", "Selection formatting", "full", context => formatBar(context)),
   feature("typography", "Smart typography", "full", () =>
     typographyRules.map(rule => rule.extension),

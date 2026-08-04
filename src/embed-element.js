@@ -126,11 +126,14 @@ const STYLE = `
   .rich-embed-tool-hint { padding: 4px 6px; font-size: 0.75rem; color: var(--rich-muted, #888); }
   .rich-embed-body { display: block; min-height: 2.5rem; max-height: 420px; overflow: hidden; }
   .rich-embed-body patchwork-view { display: block; width: 100%; height: 420px; }
-  img, video { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--rich-sunk, #eee); }
+  /* The picture is the box: its own size, capped at the column width. */
+  img, video { display: block; max-width: 100%; height: auto; }
   audio { display: block; width: 100%; }
 
   /* Media is itself: no window, no titlebar, nothing to open. */
   .rich-embed-window.media {
+    width: fit-content;
+    max-width: 100%;
     border: 0;
     border-radius: 0;
     background: none;
@@ -378,6 +381,7 @@ class RichEmbed extends HTMLElement {
   }
 }
 
-export function defineEmbedElement() {
-  if (!customElements.get(NAME)) customElements.define(NAME, RichEmbed)
-}
+// Registering as the module loads, rather than from the tool's render, keeps
+// the element's definition out of the render path entirely: any <rich-embed>
+// already in the page upgrades itself when this runs.
+if (!customElements.get(NAME)) customElements.define(NAME, RichEmbed)

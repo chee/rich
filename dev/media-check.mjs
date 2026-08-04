@@ -67,6 +67,50 @@ check(
 )
 check("a document keeps its window", embeds[3]?.bar !== "none", embeds[3]?.bar)
 
+// A picture is its own size against the page, up to the column width — no
+// letterboxing, no fill showing around it.
+const picture = await page.evaluate(async () => {
+  const canvas = document.createElement("canvas")
+  canvas.width = 300
+  canvas.height = 180
+  canvas.getContext("2d").fillRect(0, 0, 300, 180)
+  const blob = await new Promise(done => canvas.toBlob(done, "image/png"))
+  const handle = await window.repo.create2({
+    "@patchwork": { type: "file" },
+    content: new Uint8Array(await blob.arrayBuffer()),
+    mimeType: "image/png",
+    extension: "png",
+    name: "picture",
+  })
+  const { editor, Embed } = window.richDev
+  editor.dispatch({
+    changes: { from: editor.state.doc.contentLength, insert: [Embed.of(handle.url)], fit: true },
+  })
+  await new Promise(done => setTimeout(done, 500))
+  const embed = [...document.querySelectorAll("rich-embed")].at(-1)
+  const image = embed.shadowRoot.querySelector("img")
+  const window_ = embed.shadowRoot.querySelector(".rich-embed-window")
+  return {
+    image: image.getBoundingClientRect(),
+    box: window_.getBoundingClientRect(),
+    fill: getComputedStyle(image).backgroundColor,
+    text: document.querySelector("wg-content > p").getBoundingClientRect(),
+  }
+})
+
+check("the picture keeps its own size", Math.round(picture.image.width) === 300, picture.image.width)
+check(
+  "the box is the picture",
+  Math.round(picture.box.width) === 300 && Math.round(picture.box.height) === 180,
+  `${picture.box.width} x ${picture.box.height}`,
+)
+check(
+  "the picture sits at the left margin",
+  Math.round(picture.box.x) === Math.round(picture.text.x),
+  `${picture.box.x} / ${picture.text.x}`,
+)
+check("nothing shows behind it", picture.fill === "rgba(0, 0, 0, 0)", picture.fill)
+
 await page.screenshot({
   path: new URL("./shots/media-embeds.png", import.meta.url).pathname,
   caret: "initial",
