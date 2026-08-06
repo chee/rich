@@ -14,7 +14,7 @@
     "push": "vite build && pushwork sync",
     "register": "pw-modules add \"$MODULE_SETTINGS_DOC_URL\" \"$(pushwork url)\"",
     "dev:serve": "vite --config vite.dev.config.js",
-    "check": "node dev/check.mjs && node dev/table-check.mjs && node dev/media-check.mjs && node dev/bar-check.mjs && node dev/list-check.mjs"
+    "check": "node dev/check.mjs && node dev/table-check.mjs && node dev/media-check.mjs && node dev/bar-check.mjs && node dev/list-check.mjs && node dev/convert-check.mjs"
   },
   "dependencies": {
     "@automerge/automerge": "^3.1",

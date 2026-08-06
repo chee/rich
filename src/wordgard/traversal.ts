@@ -1,4 +1,4 @@
-import { Plot, Leaf, Node, Mark } from "wordgard/doc"
+import { Plot, Leaf, Node, Mark, Slice, Token } from "wordgard/doc"
 import * as am from "@automerge/automerge"
 import {
   SchemaAdapter,
@@ -49,7 +49,15 @@ function normalizeBlock(value: {
         typeof value.type === "string" ? value.type : "paragraph",
       )
   const parents = Array.isArray(value.parents)
-    ? (value.parents.filter(p => am.isImmutableString(p)) as am.ImmutableString[])
+    ? (value.parents
+        .map(p =>
+          am.isImmutableString(p)
+            ? p
+            : typeof p === "string"
+              ? new am.ImmutableString(p)
+              : null,
+        )
+        .filter(p => p != null) as am.ImmutableString[])
     : []
   const attrs: { [key: string]: am.MaterializeValue } = {}
   if (value.attrs && typeof value.attrs === "object") {
@@ -71,6 +79,40 @@ export function spansFromDoc(
   const spans: Span[] = []
   const content = doc.content
   content.forEach((node, i) => walk(adapter, node, [], i, spans))
+  return spans as am.Span[]
+}
+
+/// Convert a slice of a document (e.g. clipboard content) into Automerge
+/// spans. Plots cut open at the slice edges contribute their content without
+/// a marker of their own: text before the first block marker, the way spans
+/// describe a partial range.
+export function spansFromSlice(
+  adapter: SchemaAdapter,
+  slice: Slice,
+): am.Span[] {
+  const stack: Frame[] = [{ tag: null, content: [] }]
+  const top = () => stack[stack.length - 1]
+  const closeTop = () => {
+    const frame = stack.pop()!
+    const tag = frame.tag as Plot.Tag
+    const content =
+      frame.content.length || tag.type.canBeEmpty
+        ? frame.content
+        : [createDefault(adapter, tag.type)]
+    appendNode(top().content, tag.create(content))
+  }
+  for (const token of slice.content) {
+    if (token.tokenType === Token.Type.Open) {
+      stack.push({ tag: token as Plot.Tag, content: [] })
+    } else if (token.tokenType === Token.Type.Close) {
+      if (stack.length > 1) closeTop()
+    } else {
+      appendNode(top().content, token as Node)
+    }
+  }
+  while (stack.length > 1) closeTop()
+  const spans: Span[] = []
+  stack[0].content.forEach((node, i) => walk(adapter, node, [], i, spans))
   return spans as am.Span[]
 }
 

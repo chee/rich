@@ -10,6 +10,7 @@ import { GardState } from "wordgard/state"
 import { blockGutter } from "./blocks.js"
 import { formatBar } from "./format-bar.js"
 import { imageDropAndPaste } from "./images.js"
+import { spansClipboard } from "./spans-clipboard.js"
 import { slashCommands, slashMenu } from "./slash.js"
 import { blockTypes } from "./block-types.js"
 import { richKeys } from "./keys.js"
@@ -127,6 +128,9 @@ export const featurePlugins = [
   feature("lists", "List indenting", "core", () => listIndent()),
   feature("todo", "To-do checkboxes", "core", () => todoLists()),
   feature("images", "Image paste & drop", "core", () => imageDropAndPaste()),
+  feature("spans-clipboard", "Automerge clipboard", "core", context =>
+    spansClipboard(context.adapter),
+  ),
   feature("embed", "Document embeds", "core", embedExtensions),
   feature("placeholder", "Placeholder", "core", () => placeholder(opening())),
   feature("keys", "Keyboard shortcuts", "core", context => richKeys(context)),

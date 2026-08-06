@@ -18,7 +18,7 @@ export type {
 } from "./schema.js"
 export { amMarksFromMarks, marksFromAmMarks } from "./schema.js"
 export { basicSchemaAdapter, basicSchemaSpec } from "./basicSchema.js"
-export { docFromSpans, spansFromDoc } from "./traversal.js"
+export { docFromSpans, spansFromDoc, spansFromSlice } from "./traversal.js"
 export { diffDocs } from "./diff.js"
 export {
   automergeSyncPlugin,

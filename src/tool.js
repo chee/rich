@@ -1,6 +1,7 @@
 import * as am from "@automerge/automerge"
-import { Wordgard } from "wordgard/editor"
+import { InputRule, Wordgard } from "wordgard/editor"
 import { history } from "wordgard/history"
+import { Blockquote, BulletList, Heading, OrderedList } from "wordgard/types"
 import {
   blockDoc,
   paragraph,
@@ -31,6 +32,15 @@ import { Checked, TodoList } from "./todo-list.js"
 import { featureExtensions, richPlugins } from "./features.js"
 import { docSelector, expandSelector } from "./plugin-catalog.js"
 import "./rich.css"
+
+// The schema bundles' own versions of these rules only fire on empty lines;
+// these fire on a line with content after the cursor too.
+const convertOnPrefix = [
+  InputRule.textblockType(/^(#{1,6}) $/, match => Heading.of(match[1].text.length)),
+  InputRule.wrapping(/^> $/, Blockquote),
+  InputRule.wrapping(/^ ?- $/, BulletList),
+  InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1].text)),
+]
 
 // The render contract: (handle, element) => cleanup.
 export default function RichTool(handle, element) {
@@ -117,6 +127,8 @@ export default function RichTool(handle, element) {
       strikethrough(),
       superscript(),
       subscript(),
+
+      convertOnPrefix.map(rule => rule.extension),
 
       // Tables: cells hold inline content, which is what the block encoding
       // can represent.

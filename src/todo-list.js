@@ -48,7 +48,7 @@ const onTheBox = (event, element) => {
 
 // `[] ` or `[x] ` at the start of a line starts a to-do list, the way `- `
 // starts a bullet one.
-const createOnBrackets = InputRule.wrapping(/^ ?\[[ xX]?\] $/, TodoList, true)
+const createOnBrackets = InputRule.wrapping(/^ ?\[[ xX]?\] $/, TodoList)
 
 export function todoLists() {
   return [createOnBrackets.extension, todoChecking()]
