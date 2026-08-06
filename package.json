@@ -3,6 +3,7 @@
   "title": "Rich",
   "version": "0.0.1",
   "description": "Collaborative rich text editor (Wordgard) for Patchwork",
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
