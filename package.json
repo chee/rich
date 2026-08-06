@@ -14,11 +14,12 @@
     "push": "vite build && pushwork sync",
     "register": "pw-modules add \"$MODULE_SETTINGS_DOC_URL\" \"$(pushwork url)\"",
     "dev:serve": "vite --config vite.dev.config.js",
-    "check": "node dev/check.mjs && node dev/table-check.mjs && node dev/media-check.mjs && node dev/bar-check.mjs && node dev/list-check.mjs && node dev/convert-check.mjs"
+    "check": "node dev/check.mjs && node dev/table-check.mjs && node dev/media-check.mjs && node dev/bar-check.mjs && node dev/list-check.mjs && node dev/convert-check.mjs && node dev/draft-check.mjs && node dev/embed-check.mjs"
   },
   "dependencies": {
     "@automerge/automerge": "^3.1",
     "@automerge/automerge-repo": "^2.1.0",
+    "@inkandswitch/patchwork-providers": "^0.5.0",
     "wordgard": "^0.3.1"
   },
   "devDependencies": {

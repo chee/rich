@@ -49,6 +49,38 @@ model (e.g. `@automerge/prosemirror`).
 - **Smart typography.** `--` → em dash, `...` → ellipsis, curly quotes.
 - **Document embeds.** Drag a document from the sidebar into the editor and it
   is inserted as an embed rendering a live `<patchwork-view>` of that document.
+  An embedded tool is **asleep** until you click into it: it renders live but
+  the view is `inert` behind a click-catching sheet, so the wheel, the drag and
+  the keys stay with the note and you can always scroll past a canvas. A click
+  wakes it — accent ring, `esc` in the titlebar — and then it gets everything.
+  Escape or a click anywhere else puts it back to sleep and hands the note the
+  keyboard (the element only *asks*, by dispatching `rich-embed-release`).
+  Pictures, video and sound never sleep: they take nothing from the page.
+
+## Drafts
+
+A draft is the host's copy-on-write branch of a document: open a note inside
+one and the drafts module forks it, so what you type stays in the draft until
+it is merged. The tool's part is to **show the fork**. It subscribes to
+`draft:baseline` — answered by whichever provider is above it, and by nobody at
+all on main — and gets back the fork point, either the heads the draft branched
+from or the ones a pinned history entry sits at.
+
+The note reads as it now is, with what the draft added marked in place and what
+it took out struck through where it was. The diff is against the document at
+those heads, so it covers edits that arrived from other peers too, not only the
+ones typed here. A note the host has pinned to a point in its history opens
+read-only.
+
+The diff itself is in `src/wordgard/diff.ts`, over the same linearised "atoms"
+(one per document position) the sync plugin uses to reconcile remote changes.
+It works the way diff(1) does: **whole blocks first**, then inside the ones that
+were paired off, **by words**. A diff free to match anything against anything
+reads terribly on prose, where every paragraph begins with a capital letter and
+ends in a full stop — it will happily explain that you kept the `c`, the `t` and
+the `leep`. Blocks a hunk replaces are paired in order and diffed inside;
+whatever is left over on one side is the run of blocks the draft added or
+removed, shown whole.
 
 ## Sharing a document with other editors
 
@@ -135,6 +167,8 @@ carry their behaviour inline. `context` carries
   the element), so it belongs to the document. The element only *asks*, by
   dispatching `rich-embed-tool`; the editor owns the change.
 - `src/files.js` — file documents in, service-worker URLs out.
+- `src/drafts.js` — the `draft:baseline` subscription and the decorations it
+  turns into: added text marked, removed text drawn back in as a widget.
 - `src/wordgard/` — the Automerge bindings, vendored.
 - `src/registry.js`, `src/plugin-catalog.js`, `src/plugins-panel.js` — the
   plugin machinery and the `/plugins` UI.

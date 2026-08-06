@@ -14,6 +14,9 @@ importers:
       '@automerge/automerge-repo':
         specifier: ^2.1.0
         version: 2.5.0
+      '@inkandswitch/patchwork-providers':
+        specifier: ^0.5.0
+        version: 0.5.0(@automerge/automerge-repo@2.5.0)
       wordgard:
         specifier: ^0.3.1
         version: 0.3.1
@@ -263,6 +266,11 @@ packages:
       '@automerge/automerge-repo-keyhive': 0.0.0-alpha.71
       '@automerge/vanillajs': 2.5.0
       '@keyhive/keyhive': 0.0.0-alpha.40
+
+  '@inkandswitch/patchwork-providers@0.5.0':
+    resolution: {integrity: sha512-TUnkHWA7j4NibVZWUHm4bQo78CZJboGH2tSQ0riCIodlElQizzpkqU5N/bjcL1JK7ItObHYpvOTvZZ5nqvWjqQ==}
+    peerDependencies:
+      '@automerge/automerge-repo': '*'
 
   '@keyhive/keyhive@0.0.0-alpha.40':
     resolution: {integrity: sha512-FlvtX6ZK2q47OqqJZ/8G+SAevKJxjSdldhwJPlhUT9QTIv0LNmJO17pkEtLJ0VVrmPryP0tKQDIaQtmcE1f7Tg==}
@@ -946,6 +954,10 @@ snapshots:
       tinyargs: 0.1.4
     transitivePeerDependencies:
       - supports-color
+
+  '@inkandswitch/patchwork-providers@0.5.0(@automerge/automerge-repo@2.5.0)':
+    dependencies:
+      '@automerge/automerge-repo': 2.5.0
 
   '@keyhive/keyhive@0.0.0-alpha.40': {}
 

@@ -30,6 +30,7 @@ import { Logline } from "./logline.js"
 import { HtmlBlock } from "./html-block.js"
 import { Checked, TodoList } from "./todo-list.js"
 import { featureExtensions, richPlugins } from "./features.js"
+import { draftDiff } from "./drafts.js"
 import { docSelector, expandSelector } from "./plugin-catalog.js"
 import "./rich.css"
 
@@ -138,6 +139,11 @@ export default function RichTool(handle, element) {
 
       // Keep the editor in sync with the Automerge `content` field.
       automergeSyncPlugin({ adapter: richAdapter, handle, path: ["content"] }),
+
+      // Drafts: the diff against the fork point, and no typing into a note the
+      // host has pinned to a point in its history.
+      draftDiff({ handle, element, adapter: richAdapter }),
+      Wordgard.editable.of(!handle.isReadOnly?.()),
 
       Wordgard.scrolling("100%"),
 

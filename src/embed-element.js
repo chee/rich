@@ -124,8 +124,31 @@ const STYLE = `
     color: var(--rich-muted, #888);
   }
   .rich-embed-tool-hint { padding: 4px 6px; font-size: 0.75rem; color: var(--rich-muted, #888); }
-  .rich-embed-body { display: block; min-height: 2.5rem; max-height: 420px; overflow: hidden; }
+  .rich-embed-body { display: block; position: relative; min-height: 2.5rem; max-height: 420px; overflow: hidden; }
   .rich-embed-body patchwork-view { display: block; width: 100%; height: 420px; }
+  /* An embedded tool is asleep until you click into it: the sheet over it
+     takes the wheel, the drag and the click, so the note scrolls past a canvas
+     the way it scrolls past a picture. */
+  .rich-embed-body.asleep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+  }
+  .rich-embed-body.asleep:hover::after {
+    background: color-mix(in oklch, var(--rich-accent, gold) 8%, transparent);
+  }
+  .rich-embed-window.awake {
+    border-color: var(--rich-accent, gold);
+    box-shadow: 0 0 0 2px color-mix(in oklch, var(--rich-accent, gold) 55%, transparent);
+  }
+  .rich-embed-state {
+    flex-shrink: 0;
+    padding: 0 4px;
+    font: 400 0.6875rem var(--rich-family, system-ui, sans-serif);
+    color: var(--rich-muted, #888);
+    background: var(--rich-fill, white);
+  }
   /* The picture is the box: its own size, capped at the column width. */
   img, video { display: block; max-width: 100%; height: auto; }
   audio { display: block; width: 100%; }
@@ -228,16 +251,63 @@ class RichEmbed extends HTMLElement {
         this.toggleTools()
       },
     })
-    this.body$ = el("div", { class: "rich-embed-body" })
+    this.state$ = el("span", { class: "rich-embed-state" })
+    this.body$ = el("div", {
+      class: "rich-embed-body",
+      onclick: () => this.wake(),
+    })
     this.tools$ = el("div", { class: "rich-embed-tools", hidden: true })
     this.window$ = el(
       "div",
       { class: "rich-embed-window" },
-      el("div", { class: "rich-embed-bar" }, this.open$, this.title$, this.kind$),
+      el("div", { class: "rich-embed-bar" }, this.open$, this.title$, this.state$, this.kind$),
       this.tools$,
       this.body$,
     )
     this.shadowRoot.append(this.window$)
+  }
+
+  // Awake, the embedded tool has the pointer, the wheel and the keyboard —
+  // everything a canvas needs. Escape or a click anywhere else gives them
+  // back to the note, which is also what happens when the embed re-renders.
+  wake() {
+    const view = this.body$.firstElementChild
+    if (this.awake || !view || view.localName !== "patchwork-view") return
+    this.awake = true
+    view.inert = false
+    this.body$.classList.remove("asleep")
+    this.window$.classList.add("awake")
+    this.state$.textContent = "esc"
+    this.onOutside ??= event => {
+      if (!event.composedPath().includes(this)) this.sleep()
+    }
+    this.onEscape ??= event => {
+      if (event.key === "Escape") this.sleep()
+    }
+    document.addEventListener("mousedown", this.onOutside, true)
+    document.addEventListener("keydown", this.onEscape, true)
+    view.focus?.()
+  }
+
+  sleep() {
+    const view = this.body$.firstElementChild
+    const embedded = view?.localName === "patchwork-view"
+    if (embedded) view.inert = true
+    this.body$.classList.toggle("asleep", embedded)
+    this.window$.classList.remove("awake")
+    this.state$.textContent = ""
+    if (!this.awake) return
+    this.awake = false
+    this.forget()
+    // The element doesn't hold the selection; the editor takes the note back.
+    this.dispatchEvent(
+      new CustomEvent("rich-embed-release", { bubbles: true, composed: true }),
+    )
+  }
+
+  forget() {
+    if (this.onOutside) document.removeEventListener("mousedown", this.onOutside, true)
+    if (this.onEscape) document.removeEventListener("keydown", this.onEscape, true)
   }
 
   // A filterable list of the tools that can render this document. Typing a
@@ -334,6 +404,8 @@ class RichEmbed extends HTMLElement {
 
   disconnectedCallback() {
     this.closeTools()
+    this.awake = false
+    this.forget()
   }
 
   async render() {
@@ -378,6 +450,8 @@ class RichEmbed extends HTMLElement {
             ...(this.getAttribute("tool-id") ? { "tool-id": this.getAttribute("tool-id") } : {}),
           }),
     )
+    // A picture takes nothing from the page, so only a tool goes to sleep.
+    this.sleep()
   }
 }
 

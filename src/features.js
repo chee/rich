@@ -59,8 +59,10 @@ function embedExtensions() {
   }
 
   // `<rich-embed>` asks for a tool by dispatching an event: it draws the menu,
-  // the editor owns the document.
+  // the editor owns the document. It asks the same way when the reader leaves
+  // an embed it had woken up — the note takes the keyboard back.
   const chooseTool = Wordgard.Plugin.define(wg => {
+    const onRelease = () => wg.focus()
     const onChoose = event => {
       const element = event.target.closest?.("rich-embed") ?? event.target
       let found
@@ -79,10 +81,15 @@ function embedExtensions() {
       if (toolId) changes.push({ from: found.pos, to: found.pos + 1, add: EmbedTool.of(toolId) })
       if (changes.length) wg.dispatch({ changes, userEvent: "embed.tool" })
     }
+    const listen = on => {
+      const method = on ? "addEventListener" : "removeEventListener"
+      wg.dom[method]("rich-embed-tool", onChoose)
+      wg.dom[method]("rich-embed-release", onRelease)
+    }
     return {
-      connect: () => wg.dom.addEventListener("rich-embed-tool", onChoose),
-      disconnect: () => wg.dom.removeEventListener("rich-embed-tool", onChoose),
-      remove: () => wg.dom.removeEventListener("rich-embed-tool", onChoose),
+      connect: () => listen(true),
+      disconnect: () => listen(false),
+      remove: () => listen(false),
     }
   }).extension
 
