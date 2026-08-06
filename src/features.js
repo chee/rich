@@ -21,6 +21,7 @@ import { listIndent } from "./lists.js"
 import { getDndPayload, hasDocumentDrag } from "./dnd.js"
 import { Embed, EmbedTool } from "./adapter.js"
 import { loadedPlugins } from "./registry.js"
+import { presence } from "./presence.js"
 
 const feature = (id, name, tier, extensions) => ({
   type: "rich:feature",
@@ -142,6 +143,7 @@ export const featurePlugins = [
   feature("placeholder", "Placeholder", "core", () => placeholder(opening())),
   feature("keys", "Keyboard shortcuts", "core", context => richKeys(context)),
   feature("html", "HTML blocks", "core", () => htmlEditing()),
+  feature("presence", "Presence", "core", context => presence(context)),
   feature("format-bar", "Selection formatting", "full", context => formatBar(context)),
   feature("typography", "Smart typography", "full", () =>
     typographyRules.map(rule => rule.extension),

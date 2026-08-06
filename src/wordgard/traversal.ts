@@ -237,6 +237,75 @@ function findParents(adapter: SchemaAdapter, nodePath: Plot[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// doc positions <-> automerge indexes
+// ---------------------------------------------------------------------------
+
+/// One entry per element of the Automerge text sequence the document
+/// round-trips to — a block marker or a single character — in document
+/// order. `pos` is the wordgard position of the atom that produced it,
+/// so the array index of an entry is its Automerge index.
+export type IndexUnit = { pos: number; kind: "open" | "leaf" | "char" }
+
+export function indexUnits(adapter: SchemaAdapter, doc: Plot.Doc): IndexUnit[] {
+  const units: IndexUnit[] = []
+  let pos = 0
+  const walkNode = (node: Node, nodePath: Plot[], index: number) => {
+    if (node.is(Leaf.Text)) {
+      const text = node.param
+      for (let i = 0; i < text.length; i++) units.push({ pos: pos++, kind: "char" })
+      return
+    }
+    const parent = nodePath.length ? nodePath[nodePath.length - 1] : null
+    const parentType = parent ? parent.type : null
+    if (node.isLeaf) {
+      if (adapter.blockNameForNode(node.type, parentType) != null) {
+        units.push({ pos, kind: "leaf" })
+      }
+      pos++
+      return
+    }
+    const blockName = adapter.blockNameForNode(node.type, parentType)
+    let emit = false
+    if (blockName != null) {
+      emit = node.type.inlineContent
+        ? !isRenderOnlyTextblock(adapter, node, parent, index)
+        : containerEmits(adapter, node)
+    }
+    if (emit) units.push({ pos, kind: "open" })
+    pos++
+    const childPath = nodePath.concat(node)
+    node.content.forEach((c, i) => walkNode(c, childPath, i))
+    pos++
+  }
+  doc.content.forEach((node, i) => walkNode(node, [], i))
+  return units
+}
+
+/// The Automerge index of a wordgard position: the number of sequence
+/// elements before it.
+export function indexFromPos(units: IndexUnit[], pos: number): number {
+  let lo = 0
+  let hi = units.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (units[mid].pos < pos) lo = mid + 1
+    else hi = mid
+  }
+  return lo
+}
+
+/// The wordgard position where a cursor at the given Automerge index
+/// should be drawn. A cursor on a block marker lands at the start of
+/// that block's content; past the end, after the last element.
+export function posFromIndex(units: IndexUnit[], index: number): number {
+  if (index >= units.length) {
+    return units.length ? units[units.length - 1].pos + 1 : 0
+  }
+  const unit = units[index]
+  return unit.kind === "open" ? unit.pos + 1 : unit.pos
+}
+
+// ---------------------------------------------------------------------------
 // spans -> doc
 // ---------------------------------------------------------------------------
 
