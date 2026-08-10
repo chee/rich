@@ -66,6 +66,10 @@ const nested = JSON.parse(trip.spans).filter(
     span.value.parents.join() === "unordered-list-item",
 )
 check("nesting is stored as parents", nested.length === 2, JSON.stringify(nested[0]))
+const nestedParagraphs = JSON.parse(trip.spans).filter(
+  span => span.value?.type === "paragraph" && span.value.parents.includes("unordered-list-item"),
+)
+check("list text does not get a second paragraph marker", nestedParagraphs.length === 0)
 
 await page.keyboard.press("Shift+Tab")
 await page.waitForTimeout(150)

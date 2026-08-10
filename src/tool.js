@@ -21,7 +21,7 @@ import {
 } from "wordgard/schema"
 import { GardState } from "wordgard/state"
 import { tables } from "wordgard/table"
-import { automergeSyncPlugin } from "./wordgard/index.js"
+import { automergeSyncPlugin, UnknownBlock } from "./wordgard/index.js"
 import { docFromSpansCompat } from "./compat.js"
 import "./embed-element.js"
 import { richAdapter, Column, Columns, Embed, EmbedTool, RichImage } from "./adapter.js"
@@ -83,7 +83,8 @@ export default function RichTool(handle, element) {
   }
 
   let enabled = JSON.stringify(handle.doc()?.plugins ?? null)
-  function onDocChange() {
+  function onDocChange({ patches }) {
+    if (!patches.some(patch => patch.path.length === 0 || patch.path[0] === "plugins")) return
     const next = JSON.stringify(handle.doc()?.plugins ?? null)
     if (next === enabled) return
     enabled = next
@@ -109,6 +110,7 @@ export default function RichTool(handle, element) {
         HtmlBlock,
         TodoList,
         Checked,
+        UnknownBlock,
       ]),
 
       // Editing behaviour for exactly the node/mark types the adapter maps,

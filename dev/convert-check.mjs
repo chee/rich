@@ -189,7 +189,7 @@ check("partial spans paste cleanly", (await shape()).length > 0, await shape())
 const trip3 = await page.evaluate(() => window.richDev.roundTrip())
 check("partial paste round trips", trip3.live === trip3.rebuilt)
 
-// A Swift-style payload with an unknown block still pastes (repair path).
+// A Swift-style payload with an unknown block still pastes and round trips.
 await page.evaluate(() => {
   const editor = window.richDev.editor
   editor.dispatch({ selection: { anchor: 0, head: editor.state.doc.length } })
@@ -199,8 +199,17 @@ await page.evaluate(() => {
     JSON.stringify([
       { type: "block", value: { type: "paragraph", parents: [], attrs: {}, isEmbed: false } },
       { type: "text", value: "from swift", marks: { strong: true } },
-      { type: "block", value: { type: "mystery-block", parents: [], attrs: {}, isEmbed: false } },
+      {
+        type: "block",
+        value: {
+          type: "mystery-block",
+          parents: ["mystery-parent"],
+          attrs: { answer: 42 },
+          isEmbed: false,
+        },
+      },
       { type: "text", value: "survives" },
+      { type: "block", value: { type: "mystery-embed", parents: [], attrs: {}, isEmbed: true } },
     ]),
   )
   editor.contentDOM.dispatchEvent(
@@ -209,10 +218,22 @@ await page.evaluate(() => {
 })
 await page.waitForTimeout(150)
 const swifty = await shape()
+const swiftyText = await page.$eval("wg-content", node => node.textContent)
 check(
-  "unknown blocks are repaired to paragraphs",
-  swifty.includes("from swift") && swifty.includes("survives"),
-  swifty,
+  "unknown block text remains editable",
+  swiftyText.includes("from swift") && swiftyText.includes("survives"),
+  swiftyText,
+)
+const unknownTrip = await page.evaluate(() => window.richDev.roundTrip())
+const unknownSpans = JSON.parse(unknownTrip.spans)
+check(
+  "unknown blocks survive the round trip",
+  unknownSpans.some(
+    span => span.value?.type === "mystery-block"
+      && span.value.parents?.[0] === "mystery-parent"
+      && span.value.attrs?.answer === 42,
+  ) && unknownSpans.some(span => span.value?.type === "mystery-embed" && span.value.isEmbed),
+  unknownTrip.spans,
 )
 
 // Spans JSON off the wire has plain-string parents and embed blocks; nesting

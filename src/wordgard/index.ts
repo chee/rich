@@ -7,7 +7,7 @@ import { docFromSpans } from "./traversal.js"
 import { automergeSyncPlugin } from "./plugin.js"
 import { DocHandle } from "./DocHandle.js"
 
-export { SchemaAdapter } from "./schema.js"
+export { SchemaAdapter, UnknownBlock } from "./schema.js"
 export type {
   MappedSchemaSpec,
   BlockMappingSpec,

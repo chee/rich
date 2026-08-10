@@ -3,6 +3,7 @@ import * as am from "@automerge/automerge"
 import {
   SchemaAdapter,
   BlockMarker,
+  UnknownBlock,
   amMarksFromMarks,
   marksFromAmMarks,
 } from "./schema.js"
@@ -123,6 +124,10 @@ function walk(
   index: number,
   spans: Span[],
 ) {
+  if (node.is(UnknownBlock)) {
+    spans.push({ type: "block", value: node.param })
+    return
+  }
   if (node.is(Leaf.Text)) {
     spans.push({
       type: "text",
@@ -159,6 +164,7 @@ function walk(
   if (blockName != null) {
     if (node.type.inlineContent) {
       emit = !isRenderOnlyTextblock(adapter, node, parent, index)
+        && !startsWithUnknownStructuralBlock(node)
     } else {
       emit = containerEmits(adapter, node)
     }
@@ -174,6 +180,11 @@ function walk(
   node.content.forEach((c, i) => walk(adapter, c, childPath, i, spans))
 }
 
+function startsWithUnknownStructuralBlock(node: Plot): boolean {
+  const first = node.content[0]
+  return first?.is(UnknownBlock) === true && !first.param.isEmbed
+}
+
 // A textblock is render-only (represented implicitly, via its parent's
 // block marker) when it is the default first child of a mapped block
 // container.
@@ -184,15 +195,17 @@ function isRenderOnlyTextblock(
   index: number,
 ): boolean {
   if (parent == null || index !== 0) return false
+  if (adapter.mappingForNode(parent.type) == null) return false
+  const def = adapter.schema.defaultContentTag(parent.type)
+  if (def == null || def.type !== node.type) return false
+  if (node.content.length > 0) return true
   // Only when it is the container's *only* child. The implicit child is
   // materialised on the way back by the content that follows the container's
   // marker, so with siblings around it an empty or non-default first child
   // (the first cell of a table row, a blank first line in a column) would be
   // lost.
   if (parent.content.length !== 1) return false
-  if (adapter.mappingForNode(parent.type) == null) return false
-  const def = adapter.schema.defaultContentTag(parent.type)
-  return def != null && def.type === node.type
+  return true
 }
 
 // A mapped block container always emits its own marker: that marker is what
@@ -361,8 +374,11 @@ export function docFromSpans(
 
     // Inline embed: place a leaf inside the current textblock.
     if (block.isEmbed || (nodes != null && nodes.isEmbed)) {
-      if (nodes == null) return // unknown embed: drop
       ensureInline()
+      if (nodes == null) {
+        appendNode(top().content, UnknownBlock.of(block))
+        return
+      }
       const { param, marks } = nodes.attrs
         ? nodes.attrs.fromAutomerge(block)
         : {}
@@ -390,9 +406,9 @@ export function docFromSpans(
     }
 
     if (nodes == null) {
-      // Unknown structural block: fall back to a default textblock so
-      // that the following text is preserved.
+      while (stack.length > 1) closeTop()
       ensureInline()
+      appendNode(top().content, UnknownBlock.of(block))
       return
     }
 

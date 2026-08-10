@@ -16,9 +16,8 @@ const blockName = value => {
   return typeof type === "string" ? type : (type?.val ?? "")
 }
 
-// Rewrite spans so every block marker names a block this adapter maps, and
-// carries the `isEmbed` flag our mapping expects. Unknown blocks become
-// paragraphs (their text survives), unknown parents are dropped.
+// Rewrite spans so mapped block markers carry the `isEmbed` flag their
+// mapping expects. Unknown blocks and parents pass through unchanged.
 export function repairSpans(adapter, spans) {
   const known = name => adapter.nodesForBlock(name)
   return spans.map(span => {
@@ -28,15 +27,15 @@ export function repairSpans(adapter, spans) {
     const mapping = known(name)
     const parents = (Array.isArray(value.parents) ? value.parents : [])
       .map(parent => (typeof parent === "string" ? parent : (parent?.val ?? "")))
-      .filter(known)
+      .filter(Boolean)
     return {
       type: "block",
       value: {
         ...value,
-        type: mapping ? name : "paragraph",
+        type: name || "paragraph",
         parents,
-        isEmbed: mapping ? Boolean(mapping.isEmbed) : false,
-        attrs: mapping ? (value.attrs ?? {}) : {},
+        isEmbed: mapping ? Boolean(mapping.isEmbed) : Boolean(value.isEmbed),
+        attrs: value.attrs ?? {},
       },
     }
   })

@@ -96,11 +96,11 @@ so the shapes have to line up:
   `embed`, `image` and any `isEmbed` block alike and reads `attrs.url ??
   attrs.src`, so images written here show up there.
 - `src/compat.js` is the safety net: `docFromSpansCompat` tries the spans as
-  they are, then repaired (unknown blocks become paragraphs, unknown parents
-  are dropped, `isEmbed` is normalised to what this adapter expects), then as
-  plain text. A note never fails to open because a peer wrote something
-  unexpected. `dev/fixtures/swift-embed.automerge` is a real document from the
-  Swift app; `pnpm check` opens it.
+  they are, then repaired, then as plain text. Unknown blocks are retained as
+  generic selectable atoms with their type, parent, attributes and embed flag
+  intact. A note never fails to open because a peer wrote something unexpected.
+  `dev/fixtures/swift-embed.automerge` is a real document from the Swift app;
+  `pnpm check` opens it.
 
 ## Plugins
 

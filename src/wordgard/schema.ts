@@ -10,6 +10,24 @@ export type BlockMarker = {
   isEmbed?: boolean
 }
 
+export const UnknownBlock = Leaf.Type.define<BlockMarker>("UnknownBlock", {
+  inline: true,
+  validate: value => {
+    if (value == null || typeof value !== "object") {
+      throw new TypeError("Invalid unknown block")
+    }
+  },
+  selectable: true,
+  shape: {
+    element: "span",
+    attributes: block => ({
+      class: "rich-unknown-block",
+      "data-block-type": block.type.val,
+      title: `Unsupported block: ${block.type.val}`,
+    }),
+  },
+})
+
 /// Parsers that translate between an Automerge block marker and the
 /// wordgard node used to represent it. `fromAutomerge` produces the
 /// content node's parameter and marks, `fromWordgard` reads the block
@@ -116,8 +134,10 @@ export class SchemaAdapter {
   readonly marksByName: Map<string, MarkMapping> = new Map()
 
   constructor(spec: MappedSchemaSpec) {
-    this.elements = spec.elements
-    this.schema = Schema.define(spec.elements)
+    this.elements = spec.elements.includes(UnknownBlock)
+      ? spec.elements
+      : [...spec.elements, UnknownBlock]
+    this.schema = Schema.define(this.elements)
 
     for (const block of spec.blocks || []) {
       const content = nodeType(block.node)

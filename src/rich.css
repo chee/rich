@@ -96,7 +96,8 @@
   margin: 0.8em 0;
   padding-left: 1rem;
   border-left: 3px solid var(--rich-border);
-  color: var(--rich-muted);
+  background: var(--text-editor-fill-offset-10, var(--editor-fill-offset-10, #f5f5f5));
+  color: var(--rich-line);
 }
 
 .rich-tool .rich-page wg-content pre {
@@ -224,6 +225,16 @@
 .rich-tool .rich-page wg-content a {
   color: var(--rich-link);
   text-underline-offset: 2px;
+}
+
+.rich-tool .rich-page wg-content .rich-unknown-block {
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-right: 0.3em;
+  border-radius: 50%;
+  background: var(--text-editor-line-offset-50, var(--rich-muted));
+  vertical-align: middle;
 }
 
 .rich-tool .rich-page wg-content img {

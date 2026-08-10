@@ -34,18 +34,34 @@ export function automergeSyncPlugin({
   handle,
   path,
 }: SyncPluginConfig): GardState.Extension {
+  const spansConfig = adapter.updateSpansConfig()
+  const touchesPath = (patch: am.Patch): boolean => {
+    const length = Math.min(path.length, patch.path.length)
+    for (let i = 0; i < length; i++) {
+      if (path[i] !== patch.path[i]) return false
+    }
+    return true
+  }
   return Wordgard.Plugin.fromClass(
     class {
       wg: Wordgard
       reconciledHeads: am.Heads
       isProcessing = false
       listening = false
+      writeQueued = false
+      removed = false
       onChange: (payload: DocHandleChangePayload<unknown>) => void
 
       constructor(wg: Wordgard) {
         this.wg = wg
         this.reconciledHeads = am.getHeads(handle.doc())
-        this.onChange = () => this.receiveRemote()
+        this.onChange = payload => {
+          if (payload.patches.some(touchesPath)) {
+            this.receiveRemote()
+          } else {
+            this.reconciledHeads = am.getHeads(payload.doc)
+          }
+        }
       }
 
       listen() {
@@ -76,6 +92,15 @@ export function automergeSyncPlugin({
         )
         if (relevant.length === 0) return
 
+        if (this.writeQueued) return
+        this.writeQueued = true
+        queueMicrotask(() => this.writeLocal())
+      }
+
+      writeLocal() {
+        if (!this.writeQueued || this.removed) return
+        this.writeQueued = false
+
         // While we write our own change, ignore the resulting handle
         // "change" notification.
         this.isProcessing = true
@@ -85,8 +110,8 @@ export function automergeSyncPlugin({
               doc,
               // slice() because am mutates the path array in place
               path.slice(),
-              spansFromDoc(adapter, update.state.doc),
-              adapter.updateSpansConfig(),
+              spansFromDoc(adapter, this.wg.state.doc),
+              spansConfig,
             )
           })
           this.reconciledHeads = am.getHeads(handle.doc())
@@ -120,6 +145,8 @@ export function automergeSyncPlugin({
       }
 
       remove() {
+        this.writeLocal()
+        this.removed = true
         this.unlisten()
       }
     },
