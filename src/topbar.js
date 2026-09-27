@@ -766,7 +766,7 @@ function noteMenu(bar) {
     wg.focus()
   }
   const items = [
-    menuItem("Duplicate", "duplicate", act(() => duplicate(bar))),
+    menuItem("Duplicate", "duplicate", act(() => duplicate(bar)), { disabled: !globalThis.repo || !context.handle }),
     context.handle?.url
       ? menuItem("Copy Link", "copyLink", act(() => navigator.clipboard?.writeText(context.handle.url)))
       : null,
