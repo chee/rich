@@ -18,8 +18,8 @@ importers:
         specifier: ^0.5.0
         version: 0.5.0(@automerge/automerge-repo@2.5.0)
       wordgard:
-        specifier: ^0.3.1
-        version: 0.3.1
+        specifier: ^0.5.2
+        version: 0.5.2
     devDependencies:
       '@inkandswitch/patchwork-bootloader':
         specifier: ^0.0.4
@@ -726,8 +726,8 @@ packages:
       yaml:
         optional: true
 
-  wordgard@0.3.1:
-    resolution: {integrity: sha512-H8tn9jeYwd96S9XaH6C+BLbT7clFdr9YGwet+HwxIFF9bgckTAolb57SudKHYuYJj74BlIqxyRLh8IEjqm2VAg==}
+  wordgard@0.5.2:
+    resolution: {integrity: sha512-GaP/WbtSYi6+FM0dp9qVRE4W+5tOnz5UOrM/olqIuoEdU4csNc9XqMhKEHFKtXk5heN95UheNM+0HNxpGkLQIg==}
     engines: {node: '>=22'}
 
   ws@8.21.0:
@@ -1304,7 +1304,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  wordgard@0.3.1:
+  wordgard@0.5.2:
     dependencies:
       '@marijn/find-cluster-break': 1.0.3
       crelt: 1.0.7
