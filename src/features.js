@@ -7,8 +7,7 @@
 // serializable, the function rides behind `load()`.
 import { InputRule, Wordgard, dropCursor, placeholder } from "wordgard/editor"
 import { GardState } from "wordgard/state"
-import { blockGutter } from "./blocks.js"
-import { formatBar } from "./format-bar.js"
+import { topBar } from "./topbar.js"
 import { imageDropAndPaste } from "./images.js"
 import { spansClipboard } from "./spans-clipboard.js"
 import { slashCommands, slashMenu } from "./slash.js"
@@ -20,6 +19,7 @@ import { tableEditing } from "./tables.js"
 import { listIndent } from "./lists.js"
 import { getDndPayload, hasDocumentDrag } from "./dnd.js"
 import { Embed, EmbedTool } from "./adapter.js"
+import { insertBlocks } from "./insert.js"
 import { loadedPlugins } from "./registry.js"
 import { presence } from "./presence.js"
 
@@ -52,10 +52,8 @@ function embedExtensions() {
       pos = wg.state.doc.length
     }
 
-    wg.dispatch({
-      changes: { from: pos, insert: payload.items.map(item => Embed.of(item.url)), fit: true },
-      scrollIntoView: true,
-    })
+    wg.dispatch({ selection: { anchor: pos } })
+    insertBlocks(wg, payload.items.map(item => Embed.of(item.url)))
     return true
   }
 
@@ -131,7 +129,7 @@ const opening = () =>
 
 export const featurePlugins = [
   feature("slash", "Slash menu", "core", context => slashMenu(context)),
-  feature("blocks", "Block handles", "core", context => blockGutter(context)),
+  feature("topbar", "Top bar", "core", context => topBar(context)),
   feature("tables", "Table editing", "core", () => tableEditing()),
   feature("lists", "List indenting", "core", () => listIndent()),
   feature("todo", "To-do checkboxes", "core", () => todoLists()),
@@ -144,7 +142,6 @@ export const featurePlugins = [
   feature("keys", "Keyboard shortcuts", "core", context => richKeys(context)),
   feature("html", "HTML blocks", "core", () => htmlEditing()),
   feature("presence", "Presence", "core", context => presence(context)),
-  feature("format-bar", "Selection formatting", "full", context => formatBar(context)),
   feature("typography", "Smart typography", "full", () =>
     typographyRules.map(rule => rule.extension),
   ),

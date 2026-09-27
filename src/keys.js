@@ -11,13 +11,39 @@
 import { KeyBinding } from "wordgard/editor"
 import { GardState } from "wordgard/state"
 import { Command, toggleMark } from "wordgard/command"
-import { Code, Subscript, Superscript } from "wordgard/types"
+import { Code, Strikethrough, Subscript, Superscript, Underline } from "wordgard/types"
 import { toggleBaseline } from "./baseline.js"
+
+// The top bar owns the popovers these open, so they are reached through its
+// DOM rather than imported.
+const press = (context, selector) => () => {
+  const button = context.element.querySelector(selector)
+  if (!button) return false
+  button.click()
+  return true
+}
+
+const later = (load, name) => wg => {
+  load().then(module => module[name](wg))
+  return true
+}
 
 const run = (item, context) => wg => {
   const apply = item.apply ?? item.run
   if (typeof apply !== "function") return false
   apply(wg, context)
+  return true
+}
+
+function indent(wg, direction) {
+  import("./topbar.js").then(bar => bar.indentBlock(wg, direction))
+  return true
+}
+
+// Cmd-K opens the Aa popover on its link row.
+function openLink(wg, context) {
+  if (!press(context, ".rich-aa")()) return false
+  queueMicrotask(() => context.element.querySelector(".rich-format-popover button[title='Link']")?.click())
   return true
 }
 
@@ -30,6 +56,17 @@ export function richKeys(context) {
     // baselines stay exclusive. Mod-Shift-, as well, since the browser keeps
     // Mod-, for its settings.
     GardState.prec.highest([
+      // Lush's keys: Cmd-U, Cmd-/ strikethrough, Cmd-K link, Cmd-Ctrl-+ and
+      // Cmd-Ctrl-- for the baselines, Cmd-] and Cmd-[ to indent.
+      KeyBinding.of({ key: "Mod-u", run: Command.bind(toggleMark, Underline) }),
+      KeyBinding.of({ key: "Mod-/", run: Command.bind(toggleMark, Strikethrough) }),
+      KeyBinding.of({ key: "Mod-k", run: wg => openLink(wg, context) }),
+      KeyBinding.of({ key: "Mod-Ctrl-=", run: wg => toggleBaseline(wg, Superscript) }),
+      KeyBinding.of({ key: "Mod-Ctrl-+", run: wg => toggleBaseline(wg, Superscript) }),
+      KeyBinding.of({ key: "Mod-Ctrl--", run: wg => toggleBaseline(wg, Subscript) }),
+      KeyBinding.of({ key: "Mod-]", run: wg => indent(wg, 1) }),
+      KeyBinding.of({ key: "Mod-[", run: wg => indent(wg, -1) }),
+      KeyBinding.of({ key: "Mod-Alt-l", run: later(() => import("./topbar.js"), "openLoglineForm") }),
       KeyBinding.of({ key: "Mod-.", run: wg => toggleBaseline(wg, Superscript) }),
       KeyBinding.of({ key: "Mod-,", run: wg => toggleBaseline(wg, Subscript) }),
       KeyBinding.of({ key: "Mod-Shift-,", run: wg => toggleBaseline(wg, Subscript) }),

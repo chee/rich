@@ -8,8 +8,7 @@
 import { Dialog, KeyBinding, Tooltip } from "wordgard/editor"
 import { GardState, Transaction } from "wordgard/state"
 import { Command, insertText } from "wordgard/command"
-import { Cell, CodeBlock, HeaderCell, Paragraph, Table, TableRow } from "wordgard/types"
-import { Column, Columns } from "./adapter.js"
+import { CodeBlock } from "wordgard/types"
 import { insertLogline } from "./logline.js"
 import { insertHtmlBlock } from "./html-block.js"
 import { el } from "./dom.js"
@@ -107,50 +106,8 @@ export const slashCommands = [
   },
 ]
 
-// Where a new block goes: replacing the block the cursor is in when it is
-// empty, otherwise straight after it.
-function replacementRange(wg) {
-  const block = wg.state.sel.head.textblockParent
-  if (!block) {
-    const end = wg.state.doc.contentLength
-    return { from: end, to: end }
-  }
-  if (block.node.contentLength === 0) return { from: block.start - 1, to: block.end + 1 }
-  return { from: block.end + 1, to: block.end + 1 }
-}
-
-// Replace the (empty) block the cursor is in with a row of columns, and put
-// the cursor in the first one.
-function insertColumns(wg, count) {
-  const row = Columns.create(
-    Array.from({ length: count }, () => Column.create([Paragraph.create([])])),
-  )
-  const at = replacementRange(wg)
-  wg.dispatch({
-    changes: { from: at.from, to: at.to, insert: [row] },
-    // Columns open, Column open, Paragraph open.
-    selection: { anchor: at.from + 3 },
-    scrollIntoView: true,
-  })
-  wg.focus()
-}
-
-// A table with a header row, cursor in the first header cell.
-function insertTable(wg, rows, columns) {
-  const cells = (tag, count) => Array.from({ length: count }, () => tag.create([]))
-  const table = Table.create([
-    TableRow.create(cells(HeaderCell, columns)),
-    ...Array.from({ length: rows - 1 }, () => TableRow.create(cells(Cell, columns))),
-  ])
-  const at = replacementRange(wg)
-  wg.dispatch({
-    changes: { from: at.from, to: at.to, insert: [table] },
-    // Table open, TableRow open, HeaderCell open.
-    selection: { anchor: at.from + 3 },
-    scrollIntoView: true,
-  })
-  wg.focus()
-}
+const insertColumns = (wg, count) => import("./topbar.js").then(bar => bar.insertColumns(wg, count))
+const insertTable = (wg, rows, columns) => import("./topbar.js").then(bar => bar.insertTable(wg, rows, columns))
 
 function insertImageFromUrl(wg) {
   const { result } = Dialog.show(wg, {

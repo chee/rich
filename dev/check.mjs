@@ -48,7 +48,10 @@ const docJSON = () =>
 // Run a slash command by name.
 async function slash(query, expected) {
   await type(`/${query}`)
-  await page.waitForSelector(".rich-slash-item", { timeout: 2000 })
+  await page.waitForSelector(".rich-slash-item", { timeout: 2000 }).catch(async error => {
+    await shot(`slash-failed-${query}`)
+    throw error
+  })
   const names = await page.$$eval(".rich-slash-name", items => items.map(item => item.textContent))
   if (expected) {
     check(`slash /${query} lists ${expected}`, names.includes(expected), names.join(", "))
@@ -62,9 +65,6 @@ async function slash(query, expected) {
 async function freshPage() {
   const fresh = await browser.newPage({ viewport: { width: 1100, height: 800 } })
   fresh.on("pageerror", error => errors.push(String(error)))
-  // The selection bar hides itself when the editor doesn't have focus, and a
-  // background tab doesn't.
-  await fresh.bringToFront()
   await fresh.goto(url)
   await fresh.waitForSelector("wg-content")
   await fresh.click("wg-content")
@@ -126,287 +126,21 @@ await page.waitForTimeout(100)
 check("escape closes menu", (await page.$$(".rich-slash-item")).length === 0)
 await page.keyboard.press("Backspace")
 
-// Format bar
+// Formatting is lush's Aa popover in the top bar; there is no floating bar
+// and there are no block handles (dev/topbar-check.mjs covers the popover).
 await page.keyboard.press("Home")
 await page.keyboard.down("Shift")
 await page.keyboard.press("End")
 await page.keyboard.up("Shift")
 await page.waitForTimeout(300)
-check("format bar shows on selection", await page.isVisible(".rich-format-bar.visible"))
-await page.click(".rich-format-button[title='Bold']")
+check("no floating format bar", (await page.$$(".rich-format-bar")).length === 0)
+check("no block handles", (await page.$$(".rich-gutter")).length === 0)
+await page.click(".rich-aa")
+await page.waitForSelector(".rich-format-popover")
+await page.click(".rich-format-popover button[title='Bold']")
 await page.waitForTimeout(150)
 check("bold applied", (await page.$$("wg-content strong")).length > 0)
-
-// Block gutter: hovering the text, then moving out to the gutter, keeps it up
-await page.locator("wg-content > *").first().hover()
-await page.waitForTimeout(150)
-check("gutter appears on hover", await page.isVisible(".rich-gutter.visible"))
-const gutterBox = await page.locator(".rich-gutter").boundingBox()
-await page.mouse.move(gutterBox.x + gutterBox.width / 2, gutterBox.y + gutterBox.height / 2)
-await page.waitForTimeout(200)
-check("gutter stays reachable", await page.isVisible(".rich-gutter.visible"))
-await shot("02-gutter")
-
-// The column keeps room for the handles however narrow the tool gets.
-const narrow = await browser.newPage({ viewport: { width: 420, height: 400 } })
-await narrow.goto(url)
-await narrow.waitForSelector("wg-content")
-await narrow.click("wg-content")
-await narrow.waitForTimeout(200)
-await narrow.keyboard.type("hello", { delay: 20 })
-await narrow.locator("wg-content > *").first().hover()
-await narrow.waitForTimeout(200)
-const narrowGutter = await narrow.locator(".rich-gutter").boundingBox()
-check("the handles fit at a narrow width", narrowGutter.x >= 0, JSON.stringify(narrowGutter))
-await narrow.close()
-
-// A real drag of the grip, with the mouse.
-async function dragBlockTo(targetSelector, atBottom = false) {
-  const grip = await page.locator(".rich-gutter-grip").boundingBox()
-  const target = await page.locator(targetSelector).boundingBox()
-  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(
-    target.x + target.width / 2,
-    atBottom ? target.y + target.height - 2 : target.y + 2,
-    { steps: 12 },
-  )
-  await page.waitForTimeout(150)
-  const indicator = await page.isVisible(".rich-drop-indicator.visible")
-  await page.mouse.up()
-  await page.waitForTimeout(300)
-  return indicator
-}
-
-// Drag the grip to a block's left or right edge instead of between blocks.
-async function dragBlockToSide(targetSelector, side) {
-  const grip = await page.locator(".rich-gutter-grip").boundingBox()
-  const target = await page.locator(targetSelector).boundingBox()
-  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(
-    side === "right" ? target.x + target.width - 12 : target.x + 12,
-    target.y + target.height / 2,
-    { steps: 14 },
-  )
-  await page.waitForTimeout(150)
-  const indicator = await page.isVisible(".rich-drop-indicator.vertical.visible")
-  await page.mouse.up()
-  await page.waitForTimeout(300)
-  return indicator
-}
-
-const beforeDrag = await blocks()
-const sawIndicator = await dragBlockTo("wg-content > *:last-child", true)
-const afterDrag = await blocks()
-check("drop indicator follows the drag", sawIndicator)
-check("drag reorders blocks", beforeDrag[0] !== afterDrag[0], `${beforeDrag[0]} -> ${afterDrag[0]}`)
-
-// "+" inserts a block and opens the menu
-await page.locator("wg-content > *").first().hover()
-await page.waitForTimeout(150)
-await page.locator(".rich-gutter-button").first().click()
-await page.waitForTimeout(250)
-check("plus opens slash menu", (await page.$$(".rich-slash-item")).length > 0)
 await page.keyboard.press("Escape")
-
-// The block handle's menu: convert, colour, duplicate, delete.
-{
-  const menu = await freshPage()
-  await menu.keyboard.type("Title", { delay: 40 })
-  await menu.keyboard.press("Enter")
-  await menu.keyboard.type("colour me", { delay: 40 })
-  await menu.waitForTimeout(200)
-  await menu.locator("wg-content > *").nth(1).hover()
-  await menu.waitForTimeout(200)
-  await menu.locator(".rich-gutter-grip").click()
-  await menu.waitForTimeout(250)
-  check("block menu opens", await menu.isVisible(".rich-block-menu"))
-  const names = await menu.$$eval(".rich-block-menu-item .rich-slash-name", items =>
-    items.map(item => item.textContent),
-  )
-  check(
-    "block menu offers block types and actions",
-    names.includes("Heading") && names.includes("Duplicate") && names.includes("Delete"),
-    names.join(", "),
-  )
-  await menu.screenshot({
-    path: new URL("./shots/02b-block-menu.png", import.meta.url).pathname,
-    caret: "initial",
-  })
-
-  await menu.locator(".rich-block-menu-item:has(.rich-slash-name:text-is('Heading'))").click()
-  await menu.waitForTimeout(300)
-  check("block menu converts the block", (await menu.$$("wg-content h2")).length > 0)
-  await menu.close()
-}
-
-// The block-type row on the selection bar: what this block is, and what else
-// it could be.
-{
-  const types = await freshPage()
-  await types.keyboard.type("Title line", { delay: 40 })
-  await types.keyboard.press("Enter")
-  await types.keyboard.type("an ordinary paragraph", { delay: 40 })
-  await types.keyboard.press("Home")
-  await types.keyboard.down("Shift")
-  await types.keyboard.press("End")
-  await types.keyboard.up("Shift")
-  await types.waitForTimeout(300)
-  check(
-    "the bar names the current block type",
-    (await types.textContent(".rich-format-block-name")) === "Body",
-    await types.textContent(".rich-format-block-name"),
-  )
-  await types.click(".rich-format-block")
-  await types.waitForTimeout(200)
-  const names = await types.$$eval(".rich-format-block-item .rich-slash-name", items =>
-    items.map(item => item.textContent),
-  )
-  check(
-    "the block-type menu lists every type",
-    names.join(", ") ===
-      "Body, Title, Heading, Subheading, Bulleted List, Numbered List, To-do List, Quote, Code",
-    names.join(", "),
-  )
-  check(
-    "the current type is ticked",
-    (await types.$$eval(".rich-format-block-item", items =>
-      items.filter(i => i.querySelector(".rich-format-tick")).map(i => i.textContent),
-    )).join(", ").includes("Body"),
-  )
-  await types.screenshot({
-    path: new URL("./shots/02d-block-types.png", import.meta.url).pathname,
-    caret: "initial",
-  })
-  await types.locator(".rich-format-block-item:has(.rich-slash-name:text-is('Subheading'))").click()
-  await types.waitForTimeout(300)
-  check("the block-type menu converts the block", (await types.$$("wg-content h3")).length === 1)
-  await types.waitForTimeout(200)
-  check(
-    "the bar now names the new type",
-    (await types.textContent(".rich-format-block-name")) === "Subheading",
-    await types.textContent(".rich-format-block-name"),
-  )
-  await types.close()
-}
-
-// The link editor: anchored to the link button, at the words being linked.
-{
-  const links = await freshPage()
-  await links.keyboard.type("Title", { delay: 40 })
-  await links.keyboard.press("Enter")
-  await links.keyboard.type("link this word", { delay: 40 })
-  await links.keyboard.down("Shift")
-  for (let i = 0; i < 4; i++) await links.keyboard.press("ArrowLeft")
-  await links.keyboard.up("Shift")
-  await links.waitForTimeout(300)
-  await links.click(".rich-format-button[title='Link']")
-  await links.waitForTimeout(200)
-  check("the link editor opens", await links.isVisible(".rich-link-editor"))
-  // It hangs off the bar, so it sits where the selection is rather than at the
-  // edge of the editor.
-  const editor = await links.locator(".rich-link-editor").boundingBox()
-  const bar = await links.locator(".rich-format-bar").boundingBox()
-  const word = await links.locator("wg-content > p:last-child").boundingBox()
-  check(
-    "the link editor sits under the bar, by the words",
-    editor.y >= bar.y + bar.height &&
-      editor.x >= bar.x &&
-      editor.y - (word.y + word.height) < 200,
-    JSON.stringify({ editor: [editor.x, editor.y], bar: [bar.x, bar.y, bar.height], word: [word.y, word.height] }),
-  )
-  await links.screenshot({
-    path: new URL("./shots/02e-link.png", import.meta.url).pathname,
-    caret: "initial",
-  })
-  await links.fill(".rich-link-input", "https://chee.party")
-  await links.press(".rich-link-input", "Enter")
-  await links.waitForTimeout(300)
-  check(
-    "the link applies",
-    (await links.$eval("wg-content a", a => a.getAttribute("href"))) === "https://chee.party",
-  )
-  check("the link editor closes", (await links.$$(".rich-link-editor")).length === 0)
-
-  // Reopening on an existing link offers it back, and can take it away.
-  await links.click(".rich-format-button[title='Link']")
-  await links.waitForTimeout(200)
-  check(
-    "reopening shows the existing link",
-    (await links.inputValue(".rich-link-input")) === "https://chee.party",
-  )
-  await links.click(".rich-link-remove")
-  await links.waitForTimeout(300)
-  check("the link is removed", (await links.$$("wg-content a")).length === 0)
-  await links.close()
-}
-
-// Highlighting a span, from the bar that appears over a selection.
-{
-  const marker = await freshPage()
-  await marker.keyboard.type("Title", { delay: 40 })
-  await marker.keyboard.press("Enter")
-  await marker.keyboard.type("highlight me please", { delay: 40 })
-  await marker.keyboard.press("Home")
-  for (let i = 0; i < 10; i++) await marker.keyboard.press("ArrowRight")
-  await marker.keyboard.down("Shift")
-  for (let i = 0; i < 6; i++) await marker.keyboard.press("ArrowRight")
-  await marker.keyboard.up("Shift")
-  await marker.waitForTimeout(300)
-  check(
-    "the selection bar offers one highlight button",
-    (await marker.$$(".rich-highlight-marker")).length === 1 &&
-      (await marker.$$(".rich-highlight-swatch")).length === 0,
-  )
-  await marker.locator(".rich-highlight-dot").click()
-  await marker.waitForTimeout(150)
-  const swatches = await marker.$$eval(".rich-highlight-swatch", items =>
-    items.map(item => item.dataset.highlight),
-  )
-  check(
-    "the dot opens the colour chooser",
-    swatches.join(",") === "pink,yellow,sky,sea,mint,none",
-    swatches.join(","),
-  )
-  await marker.locator('.rich-highlight-swatch[data-highlight="mint"]').click()
-  await marker.waitForTimeout(300)
-  check("highlight applies", (await marker.$$("wg-content .rich-highlight-mint")).length === 1)
-  const trip = await marker.evaluate(() => window.richDev.roundTrip())
-  check("highlights round trip", trip.live === trip.rebuilt)
-  const marks = await marker.evaluate(
-    () => JSON.parse(window.richDev.roundTrip().spans).find(span => span.marks)?.marks ?? null,
-  )
-  check("highlights are stored by name", marks?.highlight === "mint", JSON.stringify(marks))
-  await marker.screenshot({
-    path: new URL("./shots/02c-highlight.png", import.meta.url).pathname,
-    caret: "initial",
-  })
-
-  // Picking mint left it as the current colour, so the marker alone toggles it.
-  check(
-    "the dot wears the chosen colour",
-    (await marker.getAttribute(".rich-highlight-dot", "data-highlight")) === "mint",
-  )
-  await marker.locator(".rich-highlight-marker").click()
-  await marker.waitForTimeout(250)
-  check("the marker clears an existing highlight", (await marker.$$("wg-content .rich-highlight")).length === 0)
-  await marker.locator(".rich-highlight-marker").click()
-  await marker.waitForTimeout(250)
-  check(
-    "the marker re-applies the current colour",
-    (await marker.$$("wg-content .rich-highlight-mint")).length === 1,
-  )
-
-  await marker.locator(".rich-highlight-dot").click()
-  await marker.waitForTimeout(150)
-  await marker.locator(".rich-highlight-dot").click()
-  await marker.waitForTimeout(200)
-  await marker.locator('.rich-highlight-swatch[data-highlight="none"]').click()
-  await marker.waitForTimeout(250)
-  check("highlight clears", (await marker.$$("wg-content .rich-highlight")).length === 0)
-  await marker.close()
-}
 
 // Columns
 await page.keyboard.press("Backspace")
@@ -420,19 +154,6 @@ check(
   ),
 )
 await shot("03-columns")
-
-// Blocks inside a column get their own handle, and can be dragged between
-// columns.
-await page.locator(".rich-column > *").first().hover()
-await page.waitForTimeout(200)
-check("gutter works inside a column", await page.isVisible(".rich-gutter.visible"))
-await dragBlockTo(".rich-column:last-child", true)
-const moved = await docJSON()
-check(
-  "block drags between columns",
-  moved.lastIndexOf('"param":"left side"') > moved.indexOf('"type":"Column"'),
-  moved.slice(moved.indexOf('"Columns"'), moved.indexOf('"Columns"') + 220),
-)
 
 // Tables.
 {
@@ -458,40 +179,6 @@ check(
   await table.close()
 }
 
-// Dropping a block against another block's edge puts them side by side.
-{
-  const side = await freshPage()
-  await side.keyboard.type("Title", { delay: 40 })
-  await side.keyboard.press("Enter")
-  await side.keyboard.type("left one", { delay: 40 })
-  await side.keyboard.press("Enter")
-  await side.keyboard.type("beside me", { delay: 40 })
-  await side.waitForTimeout(250)
-
-  await side.locator("wg-content > *").nth(2).hover()
-  await side.waitForTimeout(200)
-  const grip = await side.locator(".rich-gutter-grip").boundingBox()
-  const target = await side.locator("wg-content > *").nth(1).boundingBox()
-  await side.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
-  await side.mouse.down()
-  await side.mouse.move(target.x + target.width - 12, target.y + target.height / 2, { steps: 14 })
-  await side.waitForTimeout(150)
-  check("side drop shows a vertical indicator", await side.isVisible(".rich-drop-indicator.vertical.visible"))
-  await side.mouse.up()
-  await side.waitForTimeout(300)
-  const columns = await side.$$eval(".rich-columns .rich-column", items =>
-    items.map(item => item.textContent),
-  )
-  check("side drop makes columns", columns.length === 2, columns.join(" | "))
-  const trip = await side.evaluate(() => window.richDev.roundTrip())
-  check("side columns round trip", trip.live === trip.rebuilt)
-  await side.screenshot({
-    path: new URL("./shots/03c-side-columns.png", import.meta.url).pathname,
-    caret: "initial",
-  })
-  await side.close()
-}
-
 // Everything the editor holds must survive the automerge round trip.
 const trip = await page.evaluate(() => window.richDev.roundTrip())
 let diff = ""
@@ -502,7 +189,8 @@ if (trip.live !== trip.rebuilt) {
 }
 check("automerge round trip", trip.live === trip.rebuilt, diff)
 
-// Pasting an image stores a file document and inserts an image block.
+// Pasting an image stores a file document and inserts an embed of it, on a
+// line of its own — the way lush stores every photo.
 await clickInto("wg-content > *:first-child")
 await page.keyboard.press("End")
 await page.evaluate(async () => {
@@ -523,7 +211,7 @@ await page.evaluate(async () => {
 await page.waitForTimeout(700)
 const imageSrc = await page.evaluate(() => {
   const found = JSON.stringify(window.richDev.editor.state.doc.toJSON()).match(
-    /"RichImage","param":"([^"]+)"/,
+    /"Embed","param":"([^"]+)"/,
   )
   return found ? found[1] : null
 })
@@ -540,12 +228,21 @@ if (imageSrc) {
     JSON.stringify(fileDoc),
   )
 }
-check("image renders", (await page.$$("wg-content img")).length > 0)
+check(
+  "image renders",
+  await page.evaluate(() =>
+    [...document.querySelectorAll("wg-content > rich-embed")].some(embed => embed.shadowRoot?.querySelector("img")),
+  ),
+)
 await shot("04-image")
 
 // /plugins panel drives doc.plugins, and turning a plugin off takes effect.
-await clickInto("wg-content > *:first-child")
-await page.keyboard.press("End")
+await page.evaluate(() => {
+  const editor = window.richDev.editor
+  const first = editor.state.doc.content[0]
+  editor.dispatch({ selection: { anchor: first.length - 1 } })
+  editor.focus()
+})
 await page.keyboard.press("Enter")
 await slash("plugins")
 await page.waitForTimeout(250)
@@ -554,21 +251,20 @@ await shot("05-plugins")
 const rows = await page.$$eval(".rich-plugin-id", items => items.map(item => item.textContent))
 check(
   "panel lists plugins of both types",
-  rows.includes("format-bar") && rows.includes("image"),
+  rows.includes("typography") && rows.includes("image"),
   rows.join(", "),
 )
-await page.click(".rich-plugin-row:has(.rich-plugin-id:text-is('format-bar')) input")
+await page.click(".rich-plugin-row:has(.rich-plugin-id:text-is('typography')) input")
 await page.waitForTimeout(400)
 const pluginList = await page.evaluate(() => window.richDev.handle.doc().plugins)
-check("toggle writes doc.plugins", !pluginList.includes("format-bar"), JSON.stringify(pluginList))
+check("toggle writes doc.plugins", !pluginList.includes("typography"), JSON.stringify(pluginList))
 await page.keyboard.press("Escape")
 await page.waitForTimeout(200)
 await clickInto("wg-content > *:first-child")
-await page.keyboard.down("Shift")
 await page.keyboard.press("End")
-await page.keyboard.up("Shift")
-await page.waitForTimeout(300)
-check("disabled feature is gone", (await page.$$(".rich-format-bar")).length === 0)
+await type(" --")
+await page.waitForTimeout(200)
+check("disabled feature is gone", (await page.textContent("wg-content")).includes("--"))
 
 check("no page errors", errors.length === 0, errors.slice(0, 3).join(" / "))
 
@@ -728,32 +424,32 @@ await foreign.screenshot({
   // Each from body text: a quote or a list wraps the block it is applied to,
   // so running them in a chain would nest rather than convert.
   for (const [key, tag] of [
-    ["Meta+Shift+H", "H2"],
-    ["Meta+Shift+J", "H3"],
-    ["Meta+Shift+T", "H1"],
-    ["Meta+Shift+9", "BLOCKQUOTE"],
-    ["Meta+Shift+8", "UL"],
-    ["Meta+Shift+7", "OL"],
-    ["Meta+Shift+M", "PRE"],
+    ["ControlOrMeta+Shift+H", "H2"],
+    ["ControlOrMeta+Shift+J", "H3"],
+    ["ControlOrMeta+Shift+T", "H1"],
+    ["ControlOrMeta+Shift+9", "BLOCKQUOTE"],
+    ["ControlOrMeta+Shift+8", "UL"],
+    ["ControlOrMeta+Shift+7", "OL"],
+    ["ControlOrMeta+Shift+M", "PRE"],
   ]) {
-    await keys.keyboard.press("Meta+Shift+B")
+    await keys.keyboard.press("ControlOrMeta+Shift+B")
     await keys.waitForTimeout(120)
-    check("Meta+Shift+B makes a P", (await first()) === "P", await first())
+    check("ControlOrMeta+Shift+B makes a P", (await first()) === "P", await first())
     await keys.keyboard.press(key)
     await keys.waitForTimeout(150)
     check(`${key} makes a ${tag}`, (await first()) === tag, await first())
   }
 
   // A logline: a `context` block that renders the moment it was written.
-  await keys.keyboard.press("Meta+Shift+B")
+  await keys.keyboard.press("ControlOrMeta+Shift+B")
   await keys.waitForTimeout(150)
-  await keys.keyboard.press("Meta+l")
+  await keys.keyboard.press("ControlOrMeta+l")
   await keys.waitForTimeout(400)
   check("cmd-L inserts a logline", (await keys.$$("rich-logline")).length === 1)
   // Cmd-L is the address bar in a real browser, so the same command answers to
   // a key the page actually receives. (Headless has no address bar: this only
   // proves the alias is bound, not that Cmd-L arrives.)
-  await keys.keyboard.press("Meta+Shift+l")
+  await keys.keyboard.press("ControlOrMeta+Shift+l")
   await keys.waitForTimeout(400)
   check("cmd-shift-L does too", (await keys.$$("rich-logline")).length === 2)
   const stamp = await keys.evaluate(
@@ -777,7 +473,7 @@ await foreign.screenshot({
 
   // An HTML block renders its source in a sandboxed frame, and the pencil
   // edits it.
-  await keys.keyboard.press("Meta+Alt+h")
+  await keys.keyboard.press("ControlOrMeta+Alt+h")
   await keys.waitForTimeout(400)
   check("cmd-opt-H inserts an HTML block", (await keys.$$("rich-html")).length === 1)
   check(
@@ -817,7 +513,7 @@ await foreign.screenshot({
 // To-do lists: a third kind of list, whose items carry `checked`.
 {
   const todo = await freshPage()
-  await todo.keyboard.press("Meta+Shift+B")
+  await todo.keyboard.press("ControlOrMeta+Shift+B")
   await todo.keyboard.type("[] milk", { delay: 25 })
   await todo.waitForTimeout(300)
   check("`[] ` starts a to-do list", (await todo.$$("ul.rich-todo-list > li")).length === 1)
@@ -860,24 +556,27 @@ await foreign.screenshot({
   await todo.waitForTimeout(250)
 
   // The four new marks, each with its own keybinding and its own bar button.
-  await todo.keyboard.press("Meta+Shift+B")
+  await todo.keyboard.press("ControlOrMeta+Shift+B")
   await todo.keyboard.type("plain words", { delay: 25 })
   await todo.keyboard.down("Shift")
   for (let i = 0; i < 5; i++) await todo.keyboard.press("ArrowLeft")
   await todo.keyboard.up("Shift")
   await todo.waitForTimeout(300)
-  const barNames = await todo.$$eval(".rich-format-button", nodes => nodes.map(node => node.title))
+  await todo.click(".rich-aa")
+  await todo.waitForSelector(".rich-format-popover")
+  const barNames = await todo.$$eval(".rich-format-popover button", nodes => nodes.map(node => node.title))
+  await todo.keyboard.press("Escape")
   check(
-    "the bar offers the new marks",
+    "the Aa popover offers the new marks",
     ["Underline", "Strikethrough", "Superscript", "Subscript"].every(name =>
       barNames.includes(name),
     ),
     barNames.join(", "),
   )
   for (const [key, tag] of [
-    ["Meta+u", "u"],
-    ["Meta+/", "s"],
-    ["Meta+.", "sup"],
+    ["ControlOrMeta+u", "u"],
+    ["ControlOrMeta+/", "s"],
+    ["ControlOrMeta+.", "sup"],
   ]) {
     await todo.keyboard.press(key)
     await todo.waitForTimeout(200)
@@ -885,7 +584,7 @@ await foreign.screenshot({
   }
   // One baseline at a time: subscript takes superscript off. (Cmd-, is the
   // browser's own, so the page gets the mark on Cmd-Shift-, instead.)
-  await todo.keyboard.press("Meta+Shift+,")
+  await todo.keyboard.press("ControlOrMeta+Shift+,")
   await todo.waitForTimeout(200)
   check(
     "subscript replaces superscript",

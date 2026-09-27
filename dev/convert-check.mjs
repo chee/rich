@@ -31,7 +31,7 @@ const moveTo = edge =>
   }, edge)
 const lineStart = () => moveTo("start")
 const lineEnd = () => moveTo("end")
-const bodyText = () => page.keyboard.press("Meta+Shift+B")
+const bodyText = () => page.keyboard.press("ControlOrMeta+Shift+B")
 const shape = () =>
   page.$eval("wg-content", node => {
     const walk = element =>
@@ -58,10 +58,10 @@ await type("- ")
 await page.waitForTimeout(100)
 check("dash converts a non-empty line to a bullet", (await shape()) === "ul[li[p[alpha]]]", await shape())
 
-await page.keyboard.press("Meta+z")
+await page.keyboard.press("ControlOrMeta+z")
 await page.waitForTimeout(100)
 check("undo puts the typed dash back", (await shape()) === "p[- alpha]", await shape())
-await page.keyboard.press("Meta+Shift+z")
+await page.keyboard.press("ControlOrMeta+Shift+z")
 await page.waitForTimeout(100)
 check("redo converts again", (await shape()) === "ul[li[p[alpha]]]", await shape())
 
@@ -293,7 +293,7 @@ if (supported) {
     editor.dispatch({ selection: { anchor: 0, head: editor.state.doc.length }, userEvent: "select" })
     editor.focus()
   })
-  await page.keyboard.press("Meta+c")
+  await page.keyboard.press("ControlOrMeta+c")
   await page.waitForTimeout(2500)
   const onClipboard = await page.evaluate(async format => {
     try {
@@ -316,7 +316,7 @@ if (supported) {
     editor.dispatch({ selection: { anchor: editor.state.doc.length }, userEvent: "select" })
     editor.focus()
   })
-  await page.keyboard.press("Meta+v")
+  await page.keyboard.press("ControlOrMeta+v")
   await page.waitForTimeout(600)
   check(
     "real paste reads the web format back",

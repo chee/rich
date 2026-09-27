@@ -1,9 +1,11 @@
 // Getting images into the document: paste, drop from the desktop, or pick a
-// file. Each one becomes a Patchwork file document; the editor inserts an image
-// block holding that document's AutomergeUrl.
+// file. Each one becomes a Patchwork file document; the editor inserts an
+// `embed` block holding that document's AutomergeUrl — how lush stores every
+// photo, sound and file — and the embed draws it by its mime type.
 import { Wordgard } from "wordgard/editor"
 import { GardState } from "wordgard/state"
-import { RichImage } from "./adapter.js"
+import { Embed } from "./adapter.js"
+import { insertBlocks } from "./insert.js"
 import { createFileDoc, imageFiles, pickImageFiles } from "./files.js"
 
 // Create the file docs, then insert them as image blocks at `pos`. The
@@ -20,11 +22,8 @@ export async function insertImageFiles(wg, files, pos) {
   }
   if (!urls.length) return
   const at = Math.min(pos ?? wg.state.selection.head, wg.state.doc.contentLength)
-  wg.dispatch({
-    changes: { from: at, insert: urls.map(url => RichImage.of(url)), fit: true },
-    scrollIntoView: true,
-  })
-  wg.focus()
+  if (at !== wg.state.selection.head) wg.dispatch({ selection: { anchor: at } })
+  insertBlocks(wg, urls.map(url => Embed.of(url)))
 }
 
 export async function uploadImage(wg) {
@@ -33,11 +32,7 @@ export async function uploadImage(wg) {
 }
 
 export function insertImageUrl(wg, src) {
-  wg.dispatch({
-    changes: { from: wg.state.selection.head, insert: [RichImage.of(src)], fit: true },
-    scrollIntoView: true,
-  })
-  wg.focus()
+  insertBlocks(wg, [Embed.of(src)])
 }
 
 function onPaste(event, wg) {

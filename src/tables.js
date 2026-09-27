@@ -13,8 +13,6 @@ import {
   addRow,
   deleteColumn,
   deleteRow,
-  mergeCells,
-  splitCell,
   toggleHeaderCell,
 } from "wordgard/table"
 import { el, svg } from "./dom.js"
@@ -39,7 +37,8 @@ export const inTable = state =>
   state.selection instanceof CellSelection || Boolean(tableAt(state))
 
 // Every cell in the table, in document order. Rows and cells are plots, so a
-// node's length covers its content plus its two boundary positions.
+// node's length covers its content plus its two boundary positions. Cells hold
+// blocks, so the text of a cell starts two positions in (`from + 2`).
 function cellRanges(table) {
   const ranges = []
   let row = table.start
@@ -59,7 +58,7 @@ function cellRanges(table) {
 // guarantee. `at` puts it there first.
 function runAt(wg, pos, command, param) {
   if (pos != null) wg.dispatch({ selection: { anchor: pos } })
-  return Command.dispatch(wg, command, param)
+  return command ? Command.dispatch(wg, command, param) : true
 }
 
 // What the table menu offers. Everything acts on the selection, which is
@@ -77,9 +76,7 @@ export const TABLE_ACTIONS = [
     label: "Add column after",
     run: wg => Command.dispatch(wg, addColumn, "after"),
   },
-  { id: "header", label: "Toggle header cells", run: wg => Command.dispatch(wg, toggleHeaderCell) },
-  { id: "merge", label: "Merge cells", run: wg => Command.dispatch(wg, mergeCells) },
-  { id: "split", label: "Split cell", run: wg => Command.dispatch(wg, splitCell) },
+  { id: "header", label: "Toggle header row", run: wg => toggleHeaderRow(wg) },
   { id: "delete-row", label: "Delete row", danger: true, run: wg => Command.dispatch(wg, deleteRow) },
   {
     id: "delete-column",
@@ -174,14 +171,23 @@ export const TABLE_BLOCK_ACTIONS = [
     id: "header-row",
     label: "Toggle header row",
     run: (wg, table) => {
-      const span = rowSpan(table, 0)
-      selectSpan(wg, span.from, span.to)
-      Command.dispatch(wg, toggleHeaderCell)
+      runAt(wg, cellRanges(table)[0].from + 2)
+      toggleHeaderRow(wg)
     },
   },
 ]
 
-const lastCell = table => cellRanges(table).at(-1).from + 1
+const lastCell = table => cellRanges(table).at(-1).from + 2
+
+// Lush's tables have a header row or none: header cells anywhere else are
+// lost when lush saves. So the header toggles for the whole first row.
+function toggleHeaderRow(wg) {
+  const table = tableAt(wg.state)
+  if (!table) return false
+  const span = rowSpan(table, 0)
+  selectSpan(wg, span.from, span.to)
+  return Command.dispatch(wg, toggleHeaderCell)
+}
 
 // Tab walks the cells and, from the last one, grows the table — the habit from
 // every other editor, and the only way to add a row without reaching for a
@@ -196,7 +202,7 @@ function step(direction) {
     if (index < 0) return false
     const next = ranges[index + direction]
     if (next) {
-      wg.dispatch({ selection: { anchor: next.from + 1 }, scrollIntoView: true })
+      wg.dispatch({ selection: { anchor: next.from + 2 }, scrollIntoView: true })
       return true
     }
     // Off the end: a new row. Off the front: nowhere to go.
@@ -204,7 +210,7 @@ function step(direction) {
     if (!Command.dispatch(wg, addRow, "after")) return false
     const grown = tableAt(wg.state)
     const after = grown && cellRanges(grown)[index + 1]
-    if (after) wg.dispatch({ selection: { anchor: after.from + 1 }, scrollIntoView: true })
+    if (after) wg.dispatch({ selection: { anchor: after.from + 2 }, scrollIntoView: true })
     return true
   }
 }
@@ -214,7 +220,7 @@ function step(direction) {
 function selectSpan(wg, from, to) {
   const selection = CellSelection.between(wg.state.doc, from, to)
   if (selection) wg.dispatch({ selection })
-  else wg.dispatch({ selection: { anchor: from + 1 } })
+  else wg.dispatch({ selection: { anchor: from + 2 } })
   wg.focus()
 }
 
@@ -393,13 +399,13 @@ class TableHandles {
       "column",
       `top:${box.top - host.top}px;left:${box.right - host.left + 4}px;height:${box.height}px`,
       "Add column",
-      () => runAt(this.wg, last[last.length - 1].from + 1, addColumn, "after"),
+      () => runAt(this.wg, last[last.length - 1].from + 2, addColumn, "after"),
     )
     plus(
       "row",
       `top:${box.bottom - host.top + 4}px;left:${box.left - host.left}px;width:${box.width}px`,
       "Add row",
-      () => runAt(this.wg, last[last.length - 1].from + 1, addRow, "after"),
+      () => runAt(this.wg, last[last.length - 1].from + 2, addRow, "after"),
     )
   }
 }

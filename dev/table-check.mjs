@@ -93,102 +93,66 @@ await page.waitForTimeout(150)
 check("+ adds a row", (await shape()).length === rowsBefore + 1, JSON.stringify(await shape()))
 await shot("table-grown")
 
-// A column grip selects the column and the format bar swaps to table verbs.
+// A column grip selects the column; the ••• menu then offers the table verbs.
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
 await page.waitForTimeout(150)
 await page.click(".rich-table-grip.column")
 await page.waitForTimeout(150)
 const selected = await page.$$eval(".wg-selected-cell", n => n.length)
 check("column grip selects the column", selected > 1, `${selected} cells`)
-// The highlight and table buttons live inside a wrapper, and it is the wrapper
-// that gets hidden — so ask whether anything up the tree is hidden.
-const visible = () =>
-  page.$$eval(".rich-format-bar .rich-format-button", n =>
-    n.filter(b => !b.closest(".hidden")).map(b => b.title || b.textContent),
-  )
-let labels = await visible()
-check("the bar offers a table button", labels.includes("Table"), labels.join(" "))
-check("the bar hides the character verbs on a cell selection", !labels.includes("Bold"), labels.join(" "))
-check(
-  "the bar hides the block-type row inside a table",
-  await page.$eval(".rich-format-block-control", n => n.classList.contains("hidden")),
-)
-await shot("table-column-selected")
 
-// The table button drops down the actions.
-await page.click(".rich-table-menu-button")
-await page.waitForTimeout(150)
-const items = await page.$$eval(".rich-table-menu-item", n => n.map(b => b.textContent))
-check(
-  "the table menu lists the actions",
-  items.join(", ") ===
-    "Add row above, Add row below, Add column before, Add column after, Toggle header cells, Merge cells, Split cell, Delete row, Delete column",
-  items.join(", "),
-)
+await page.click(".rich-more")
+await page.waitForSelector(".rich-note-menu")
+const items = await page.$$eval(".rich-note-menu .rich-menu-label", n => n.map(b => b.textContent))
+const verbs = "Add row above, Add row below, Add column before, Add column after, Toggle header row, Delete row, Delete column"
+check("the ••• menu lists the table actions", items.join(", ").includes(verbs), items.join(", "))
+check("no merged cells, as in lush", !items.some(item => /merge|split/i.test(item)), items.join(", "))
 await shot("table-menu")
 
 // Delete column, from the menu.
 const wideNow = (await shape())[0].length / 2
-await page.click(".rich-table-menu-item:text-is('Delete column')")
+await page.click(".rich-note-menu .rich-menu-item:has-text('Delete column')")
 await page.waitForTimeout(150)
 check("the menu deletes the column", (await shape())[0].length / 2 === wideNow - 1, JSON.stringify(await shape()))
 
-// Selecting text inside a cell keeps the character verbs but not the headings.
-// On its own page: a leftover cell selection changes what a click in a cell
-// does, and this is about the plain case.
-{
-  const fresh = await browser.newPage({ viewport: { width: 1100, height: 800 } })
-  fresh.on("pageerror", e => errors.push(String(e)))
-  await fresh.goto(process.env.RICH_DEV_URL ?? "http://localhost:5173/")
-  await fresh.waitForSelector("wg-content")
-  await fresh.click("wg-content")
-  await fresh.keyboard.type("Notes", { delay: 40 })
-  await fresh.keyboard.press("Enter")
-  await fresh.keyboard.type("/", { delay: 40 })
-  await fresh.waitForSelector(".rich-slash-item")
-  await fresh.keyboard.type("table", { delay: 40 })
-  await fresh.waitForTimeout(100)
-  await fresh.keyboard.press("Enter")
-  await fresh.waitForSelector("wg-content table")
-  await fresh.keyboard.type("word", { delay: 30 })
-  await fresh.keyboard.down("Shift")
-  for (let i = 0; i < 4; i++) await fresh.keyboard.press("ArrowLeft")
-  await fresh.keyboard.up("Shift")
-  await fresh.waitForTimeout(300)
-  check(
-    "the caret is in a cell",
-    await fresh.evaluate(() =>
-      Boolean(window.richDev.editor.state.sel.head.matchingParent(p => p.name === "Table")),
-    ),
-  )
-  labels = await fresh.$$eval(".rich-format-bar .rich-format-button", n =>
-    n.filter(b => !b.closest(".hidden")).map(b => b.title || b.textContent),
-  )
-  check("a text selection in a cell keeps bold", labels.includes("Bold"), labels.join(" "))
-  check(
-    "a text selection in a cell hides the block-type row",
-    await fresh.$eval(".rich-format-block-control", n => n.classList.contains("hidden")),
-  )
-  check("a text selection in a cell keeps the table button", labels.includes("Table"), labels.join(" "))
-  await fresh.screenshot({
-    path: new URL("./shots/table-text-selected.png", import.meta.url).pathname,
-    caret: "initial",
-  })
-  await fresh.close()
-}
+// Stored the way lush stores a table: a top-level `table`, rows under it,
+// header cells in the first row only, and each cell's text straight after
+// its marker.
+const stored = await page.evaluate(() => window.richDev.spans())
+const blocks = stored.filter(span => span.type === "block").map(span => span.value)
+const table = blocks.find(block => block.type === "table")
+check("the table is top level", JSON.stringify(table?.parents) === "[]", JSON.stringify(table))
+check(
+  "rows nest under the table",
+  blocks.filter(block => block.type === "table-row").every(block => JSON.stringify(block.parents) === '["table"]'),
+)
+check(
+  "cells nest under the row",
+  blocks
+    .filter(block => block.type.startsWith("table-") && block.type.endsWith("cell"))
+    .every(block => JSON.stringify(block.parents) === '["table","table-row"]'),
+)
+check("the header is the first row", (await shape())[0].startsWith("th") && !(await shape()).slice(1).some(row => row.includes("th")))
+const trip = await page.evaluate(() => window.richDev.roundTrip())
+check("the table round trips", trip.live === trip.rebuilt)
 
-// The block menu's table section.
-await page.mouse.move(box.x + 20, box.y + 10)
-await page.waitForTimeout(150)
-await page.click(".rich-gutter-grip")
-await page.waitForSelector(".rich-block-menu")
-const blockItems = await page.$$eval(".rich-block-menu-item", n => n.map(b => b.textContent))
-check("block menu has a table section", blockItems.includes("Add row"), blockItems.join(", "))
-await shot("table-block-menu")
-const rowsNow = (await shape()).length
-await page.click(".rich-block-menu-item:has-text('Add row')")
-await page.waitForTimeout(100)
-check("block menu adds a row", (await shape()).length === rowsNow + 1, JSON.stringify(await shape()))
+// A second line in a cell: cells hold blocks, as they do in lush.
+await page.click("wg-content table td >> nth=0")
+await page.keyboard.press("End")
+await page.keyboard.type("one", { delay: 30 })
+await page.keyboard.press("Enter")
+await page.keyboard.type("two", { delay: 30 })
+await page.waitForTimeout(200)
+check(
+  "a cell holds two lines",
+  await page.$$eval("wg-content table td, wg-content table th", tds => tds.some(td => td.querySelectorAll("p").length === 2)),
+  await page.$eval("wg-content table", table => table.innerHTML.slice(0, 300)),
+)
+const lines = await page.evaluate(() => window.richDev.spans())
+check(
+  "the cell's second line nests under table-cell",
+  lines.some(span => span.type === "block" && JSON.stringify(span.value.parents) === '["table","table-row","table-cell"]'),
+)
 
 check("no page errors", errors.length === 0, errors.join(" | "))
 console.log(problems.length ? `\n${problems.length} failing: ${problems.join(", ")}` : "\nall ok")

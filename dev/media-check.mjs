@@ -94,7 +94,7 @@ const picture = await page.evaluate(async () => {
     image: image.getBoundingClientRect(),
     box: window_.getBoundingClientRect(),
     fill: getComputedStyle(image).backgroundColor,
-    text: document.querySelector("wg-content > p").getBoundingClientRect(),
+    text: document.querySelector("wg-content > :first-child").getBoundingClientRect(),
   }
 })
 

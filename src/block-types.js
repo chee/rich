@@ -44,48 +44,76 @@ const HEADINGS = [
   { level: 3, name: "Subheading", keywords: ["h3", "heading 3", "small"], key: "Mod-Shift-j" },
 ]
 
+// Lush replaces the whole block when you pick a style: out of any list or
+// quote, then the new type. Picking the style a block already has puts it
+// back to Body.
+const WRAPPERS = [Blockquote, BulletList, OrderedList, TodoList]
+
+export function toBody(wg) {
+  Command.dispatch(wg, setTextblockType, Paragraph)
+  while (Command.dispatch(wg, unwrapBlock, WRAPPERS));
+}
+
+const restyle = (active, apply) => wg => {
+  const was = active(wg.state)
+  toBody(wg)
+  if (!was) apply(wg)
+}
+
+const isList = type => state => Boolean(state.sel.head.matchingParent(plot => plot.tag.type === type))
+
 export const blockTypes = [
   blockType("text", "Body", "text", ["paragraph", "plain", "text"], {
-    active: state => textblockIs(state, tag => tag === Paragraph),
-    // Body means body: a line in a quote or a list comes out of it, rather
-    // than staying wrapped in something that is not body text.
-    apply: wg => {
-      Command.dispatch(wg, setTextblockType, Paragraph)
-      while (Command.dispatch(wg, unwrapBlock, [Blockquote, BulletList, OrderedList, TodoList]));
-    },
+    active: state =>
+      textblockIs(state, tag => tag === Paragraph) &&
+      !state.sel.head.matchingParent(plot => WRAPPERS.some(wrapper => plot.tag.type === wrapper.type)),
+    apply: toBody,
     key: "Mod-Shift-b",
   }),
-  ...HEADINGS.map(({ level, name, keywords, key }) =>
-    blockType(`h${level}`, name, `h${level}`, keywords, {
-      active: state =>
-        textblockIs(state, tag => tag.type === Heading && tag.param === level),
-      apply: wg => Command.dispatch(wg, setTextblockType, Heading.of(level)),
+  ...HEADINGS.map(({ level, name, keywords, key }) => {
+    // Lush draws every heading past the third like the third.
+    const active = state =>
+      textblockIs(state, tag => tag.type === Heading && Math.min(tag.param, 3) === level)
+    return blockType(`h${level}`, name, `h${level}`, keywords, {
+      active,
+      apply: restyle(active, wg => Command.dispatch(wg, setTextblockType, Heading.of(level))),
       key,
-    }),
-  ),
+    })
+  }),
+  blockType("code", "Code", "code", ["pre", "snippet", "code block"], {
+    active: state => textblockIs(state, tag => tag.type === CodeBlock.type),
+    apply: restyle(
+      state => textblockIs(state, tag => tag.type === CodeBlock.type),
+      wg => Command.dispatch(wg, setTextblockType, CodeBlock),
+    ),
+    key: "Mod-Shift-m",
+  }),
   blockType("bullet", "Bulleted List", "bullet", ["ul", "unordered"], {
-    active: state => insideList(state, BulletList),
-    apply: wg => Command.dispatch(wg, toggleList, BulletList),
+    active: isList(BulletList.type),
+    apply: restyle(isList(BulletList.type), wg => Command.dispatch(wg, toggleList, BulletList)),
     key: "Mod-Shift-8",
   }),
   blockType("ordered", "Numbered List", "ordered", ["ol", "number"], {
-    active: state => Boolean(state.sel.head.matchingParent(plot => plot.tag.type === OrderedList)),
-    apply: wg => Command.dispatch(wg, toggleList, OrderedList.of(1)),
+    active: isList(OrderedList),
+    apply: restyle(isList(OrderedList), wg => Command.dispatch(wg, toggleList, OrderedList.of(1))),
     key: "Mod-Shift-7",
   }),
   blockType("todo", "To-do List", "todo", ["task", "checkbox", "check", "tick"], {
-    active: state => insideList(state, TodoList),
-    apply: wg => Command.dispatch(wg, toggleList, TodoList),
+    active: isList(TodoList.type),
+    apply: restyle(isList(TodoList.type), wg => Command.dispatch(wg, toggleList, TodoList)),
     key: "Mod-Shift-0",
   }),
   blockType("quote", "Quote", "quote", ["blockquote", "citation"], {
-    active: state => insideList(state, Blockquote),
-    apply: wg => Command.dispatch(wg, toggleBlock, Blockquote),
+    active: isList(Blockquote.type),
+    apply: restyle(isList(Blockquote.type), wg => Command.dispatch(wg, toggleBlock, Blockquote)),
     key: "Mod-Shift-9",
   }),
-  blockType("code", "Code", "code", ["pre", "snippet", "code block"], {
-    active: state => textblockIs(state, tag => tag === CodeBlock),
-    apply: wg => Command.dispatch(wg, setTextblockType, CodeBlock),
-    key: "Mod-Shift-m",
-  }),
 ]
+
+// The style lush's popover ticks: a list or a quote wins over the line's own
+// type, since a list item's line is a paragraph.
+export function currentStyle(state) {
+  const order = ["todo", "ordered", "bullet", "quote", "h1", "h2", "h3", "code", "text"]
+  const byId = Object.fromEntries(blockTypes.map(block => [block.id, block]))
+  return order.find(id => byId[id].active(state)) ?? "text"
+}

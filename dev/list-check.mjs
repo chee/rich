@@ -106,7 +106,7 @@ await second.waitForSelector("wg-content")
 await second.click("wg-content")
 await second.waitForTimeout(300)
 // A note opens on its Title; this list is about lists, so start on body text.
-await second.keyboard.press("Meta+Shift+B")
+await second.keyboard.press("ControlOrMeta+Shift+B")
 await second.keyboard.type("- a", { delay: 30 })
 await second.keyboard.press("Enter")
 await second.keyboard.type("b", { delay: 30 })

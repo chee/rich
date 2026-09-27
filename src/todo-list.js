@@ -8,6 +8,7 @@
 import { InlineListItem, ListItem } from "wordgard/types"
 import { Mark, Node, Plot } from "wordgard/doc"
 import { InputRule, Wordgard } from "wordgard/editor"
+import { Transaction } from "wordgard/state"
 
 export const TodoList = Plot.define("TodoList", {
   blockContent: [ListItem, InlineListItem],
@@ -92,20 +93,36 @@ const onTheBox = (event, element) => {
 const wrapTodo = InputRule.wrapping(/^ ?\[([ xX\-/]?)\] $/, TodoList)
 const BRACKET_STATES = { x: "checked", X: "checked", "-": "canceled", "/": "pending" }
 
+// A rule returns one transaction, and the item it makes doesn't exist until
+// that has applied, so the state rides along as an annotation and is set on
+// the new item right after.
+const bracketState = Transaction.Annotation.define()
+
 const createOnBrackets = InputRule.define({
   expr: /^ ?\[([ xX\-/]?)\] $/,
-  apply: (wg, match) => {
-    const state = BRACKET_STATES[match[1]?.text ?? ""]
-    if (!wrapTodo.apply(wg, match)) return false
-    if (!state) return true
-    const item = wg.state.sel.head.matchingParent(plot => plot.type === ListItem.type)
-    if (item) wg.dispatch({ changes: todoStateChanges(item.node.tag, item.before, state) })
-    return true
+  apply: (state, match) => {
+    const spec = wrapTodo.apply(state, match)
+    const todo = BRACKET_STATES[match[1]?.text ?? ""]
+    if (!spec || !todo) return spec
+    return { ...spec, annotations: [].concat(spec.annotations ?? [], bracketState.of(todo)) }
   },
 })
 
+const applyBracketState = Wordgard.Plugin.define(wg => ({
+  update(update) {
+    for (const tr of update.transactions) {
+      const todo = tr.annotation(bracketState)
+      if (!todo) continue
+      queueMicrotask(() => {
+        const item = wg.state.sel.head.matchingParent(plot => plot.type === ListItem.type)
+        if (item) wg.dispatch({ changes: todoStateChanges(item.node.tag, item.before, todo) })
+      })
+    }
+  },
+})).extension
+
 export function todoLists() {
-  return [createOnBrackets.extension, todoChecking()]
+  return [createOnBrackets.extension, applyBracketState, todoChecking()]
 }
 
 function todoChecking() {

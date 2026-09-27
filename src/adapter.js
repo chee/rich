@@ -10,7 +10,6 @@ import {
   Emphasis,
   Heading,
   Image,
-  ImageAlt,
   LineBreak,
   ListItem,
   Paragraph,
@@ -37,6 +36,8 @@ import { Checked, TodoList, TodoState, todoParsers } from "./todo-list.js"
 // parameter, so it rides along as a `tool-id` attribute on the element and
 // stays out of the document's URL.
 export const EmbedTool = Mark.Type.define("EmbedTool", {
+  // embeds are block leaves, so the default (inline leaves) won't do
+  target: Node.Group.Leaf,
   validate: "string",
   shape: { attribute: "tool-id", value: 0 },
 })
@@ -237,20 +238,11 @@ export const richAdapter = new SchemaAdapter({
       node: RichImage,
       block: "image",
       isEmbed: true,
-      owns: ["src", "url", "alt"],
+      // `alt` rides along as an extra
+      owns: ["src", "url"],
       attrs: {
-        fromAutomerge: block => {
-          const src = amString(block.attrs.url) ?? amString(block.attrs.src) ?? ""
-          const alt = amString(block.attrs.alt)
-          const marks = alt != null ? ImageAlt.of(alt).addToSet(Mark.none) : Mark.none
-          return { param: src, marks }
-        },
-        fromWordgard: node => {
-          const attrs = { src: node.param }
-          const alt = node.mark(ImageAlt)
-          if (alt != null) attrs.alt = alt
-          return attrs
-        },
+        fromAutomerge: block => ({ param: amString(block.attrs.url) ?? amString(block.attrs.src) ?? "" }),
+        fromWordgard: node => ({ src: node.param }),
       },
     },
     { node: Columns, block: "columns" },

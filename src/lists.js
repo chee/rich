@@ -8,7 +8,7 @@ import { autoJoinBlocks } from "wordgard/command"
 
 const isList = plot => plot.node.type.hasRole(Node.Role.List)
 
-function itemAt(state) {
+export function listItemAt(state) {
   if (!state.selection.isCursor) return null
   for (let scan = state.sel.head.parent; scan; scan = scan.parent) {
     if (scan.parent && isList(scan.parent)) return scan
@@ -17,7 +17,7 @@ function itemAt(state) {
 }
 
 export function sinkListItem(state) {
-  const item = itemAt(state)
+  const item = listItemAt(state)
   if (!item) return false
   const list = item.parent
   const previous = item.previousSibling
@@ -34,7 +34,7 @@ export function sinkListItem(state) {
 }
 
 export function liftListItem(state) {
-  const item = itemAt(state)
+  const item = listItemAt(state)
   if (!item) return false
   const list = item.parent
   // Only nesting is undone here: the list has to sit at the end of an item of

@@ -12,50 +12,64 @@ model (e.g. `@automerge/prosemirror`).
 
 ## The editor
 
-- **No toolbar.** A clean page: centred column, the first block styled as the
-  note's title, a placeholder in an empty note.
-- **Slash menu.** `/` at the start of a block (or after a space). It shows two
-  kinds of thing, kept apart: **block types** to turn this block into, and
-  **commands** that insert or do something. Arrow keys move, Enter/Tab run,
-  Escape dismisses.
-- **Block handles.** Hovering a block shows a gutter: `+` inserts a block below
-  and opens the slash menu; the grip **drags** the block to reorder and
-  **clicks** to open its menu — turn into another block type, colour it,
-  duplicate, delete. Blocks inside a column get handles too. The hover band
-  extends left of the text so the controls stay grabbable.
-- **Columns.** `/columns`, or drag a block against another block's left or
-  right edge and it offers to put them side by side (a vertical drop
-  indicator); against a block already in a column, it adds a column to that
-  row. `Columns`/`Column` are real schema nodes mapping to `columns`/`column`
-  Automerge blocks, so a layout round-trips.
-- **Tables.** `/table` — wordgard's table support, mapped to
-  `table`/`table-row`/`table-cell` blocks.
-- **Nested lists.** Tab nests a list item under the one above it, Shift-Tab
-  pulls it back out (with anything under it following along). Nesting is stored
-  the way the shared schema stores it, as a deeper `parents` stack.
-- **Highlights.** Five of them — pink, yellow, sky, sea, mint — in the bar that
-  appears over a selection. Each is a pairing of a background (the editor's own
-  fill, nudged towards the hue) and a text colour that sits deep against it.
-  `light-dark()` picks between them, so they follow the `color-scheme` the
-  editor is actually wearing rather than the reader's OS. The document stores
-  the *name*, so the look belongs to the theme.
-- **Images are file documents.** Pasting, dropping or picking an image creates a
-  Patchwork `file` doc (a `UnixFileEntry`: `content`/`extension`/`mimeType`/
-  `name`) and stores its AutomergeUrl in the image block; only the rendered
-  `<img>` resolves that to a service-worker URL, so notes stay portable. An
-  image block with an ordinary URL still works (`/image-url`).
-- **Selection formatting.** A floating bar over the selection: bold, italic,
-  code, link, H1/H2, quote.
+Rich is a web lush: it reads and writes the same automerge notes as chee's
+Swift notes app, in exactly the shape lush does (see **The document** below),
+and it looks and behaves like lush's editor.
+
+- **The top bar.** A translucent bar floats over the note, which fades out
+  beneath it as you scroll. In the middle, a pill with **Aa** and a
+  **paperclip**; on the right, **•••** and **info**.
+- **Aa** opens lush's format popover, row for row: B, I, U, S, link,
+  superscript and subscript; the fonts **Serif**, **Hand** and **Code**; a
+  highlighter with five swatches (pink, yellow, sky, sea, mint) and none; the
+  block styles, each drawn in its own style with a tick on the current one —
+  Title, Heading, Subheading, Body, Code; Bulleted, Numbered and To-do lists;
+  Quote — and an indent/outdent pill. In a code block, a language picker.
+  Picking the style a block already has puts it back to Body.
+- **The paperclip**: Choose Photo…, Record Audio, Live Transcription, Attach
+  File…, Logline, Logline…, Table, Columns, HTML Block, Patchwork Doc….
+- **•••**: Duplicate (a new note with no shared history), Copy Link, the table
+  verbs when the caret is in a table, Plugins….
+- **Markdown triggers**, as in lush: `-`/`*` bullet, `1.` numbered, `#`–`###`
+  Title/Heading/Subheading, `>` quote, `[]`/`[ ]` to-do, `[x]` done, `[-]`
+  canceled, `[/]` pending.
+- **Keys**, as in lush: Cmd-Shift-T/H/J/B/M for Title/Heading/Subheading/
+  Body/Code, Cmd-Shift-8/7/0/9 for bullets/numbers/to-dos/quote, Cmd-U,
+  Cmd-/ strikethrough, Cmd-K link, Cmd-Ctrl-+/- super/subscript, Cmd-L
+  logline, Cmd-Opt-L logline form, Cmd-Opt-T table, Tab/Shift-Tab and
+  Cmd-]/Cmd-[ to indent.
+- **Slash menu.** `/` at the start of a block (or after a space) still offers
+  the block types and the commands.
 - **Smart typography.** `--` → em dash, `...` → ellipsis, curly quotes.
-- **Document embeds.** Drag a document from the sidebar into the editor and it
-  is inserted as an embed rendering a live `<patchwork-view>` of that document.
-  An embedded tool is **asleep** until you click into it: it renders live but
-  the view is `inert` behind a click-catching sheet, so the wheel, the drag and
-  the keys stay with the note and you can always scroll past a canvas. A click
-  wakes it — accent ring, `esc` in the titlebar — and then it gets everything.
-  Escape or a click anywhere else puts it back to sleep and hands the note the
-  keyboard (the element only *asks*, by dispatching `rich-embed-release`).
-  Pictures, video and sound never sleep: they take nothing from the page.
+- **Embeds.** Photos, sounds, videos, files and Patchwork documents are all
+  `embed` blocks holding a URL, each on a line of its own; the element draws
+  a file by its mime type and a document as a live `<patchwork-view>`. An
+  embedded tool is **asleep** until you click into it.
+
+## The document
+
+The note is lush's: `content` is automerge rich text, `title` (and
+`@patchwork.title`) is written from the first line on every write.
+
+- Blocks: `paragraph` (`indent`), `heading` (`level` 1–3, `indent`),
+  `code-block` (one marker **per line**, `language`), `unordered-list-item`,
+  `ordered-list-item`, `todo-list-item` (`checked: true`, or
+  `state: "canceled" | "pending"`), `blockquote` (first line; the following
+  lines are `paragraph` with `parents: ["blockquote"]`), and the embeds
+  `embed` (`url`, `tool`), `context` (a logline), `html`, all with
+  `parents: []`. Tables (`table`, `table-row`, `table-cell`,
+  `table-header-cell`, cells holding blocks) and `columns`/`column` sit at
+  the top level. List nesting is the item's own type repeated in `parents`.
+- Marks: `strong` (not inside headings), `em`, `code`, `link` (a plain URL),
+  `highlight` (by name), `underline`, `strikethrough`, `superscript`,
+  `subscript`, `font` (`serif` or `hand`). Every mark expands both ways.
+- Soft line breaks are U+2028 in the text.
+- Anything rich doesn't model — a block attr (an embed's `alt`, a logline's
+  provider extras), a mark, a whole block (a calendar event) — is kept and
+  written back as it came, and attr strings are Str scalars, as lush writes
+  them.
+- Older rich notes (embeds inside paragraphs, JSON links, multi-line code
+  blocks) still open, and are written the lush way from then on.
 
 ## Drafts
 
@@ -118,8 +132,7 @@ and gets everything.
 Three plugin types:
 
 ```js
-// rich:block — a block type: appears under "Turn into" in the slash menu and
-// in the block handle's menu
+// rich:block — a block type: appears under "Turn into" in the slash menu
 {type: "rich:block", id: "callout", name: "Callout", icon: "<path d='…'/>",
  keywords: ["aside"], tier: "full",
  async load() { return {active(state) {…}, apply(wg) {…}} }}
@@ -201,8 +214,8 @@ pnpm check          # drives the page in headless chromium; shots in dev/shots/
 ```
 
 Three things to know if you extend the test: it launches the `"chromium"`
-channel because the old headless shell doesn't run native HTML5 drag-and-drop
-(the block handles need it), screenshots must pass `caret: "initial"`
+channel (set `CHROME_PATH` to use a particular build), keys are pressed as
+`ControlOrMeta+…` so they work on Linux too, screenshots must pass `caret: "initial"`
 (playwright's caret-hiding style injection makes Wordgard's DOM observer
 crash), and typing needs a `delay` or the keystrokes outrun the editor.
 
