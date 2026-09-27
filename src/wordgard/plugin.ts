@@ -141,12 +141,27 @@ export function automergeSyncPlugin({
       /// straight to the Automerge text, instead of diffing the whole
       /// document with `updateSpans`, which costs time in proportion to
       /// the note's length on every keystroke. Returns false, having
-      /// changed nothing, when the transactions aren't all like that;
-      /// returns false having spliced when the marks came out different
-      /// from the editor's, and the caller's `updateSpans` then corrects
-      /// just that.
+      /// changed nothing, when the transactions aren't all like that.
       writeText(doc: am.Doc<unknown>, transactions: Transaction[]): boolean {
-        type Edit = { index: number; del: number; text: string; marks: am.MarkSet }
+        type Edit = {
+          index: number
+          del: number
+          text: string
+          marks: am.MarkSet
+          // marks to set by hand: at the edge of a run, what automerge gives
+          // new text depends on how each mark expands
+          explicit: string[] | null
+        }
+        const marksOf = (doc: Plot.Doc, from: number, to: number): Mark.Set | null => {
+          let marks: Mark.Set | null = null
+          let mixed = false
+          doc.iterate(from, to, node => {
+            if (!node.is(Leaf.Text)) return
+            if (marks && !Mark.sameSet(marks, node.marks)) mixed = true
+            marks = node.marks
+          })
+          return mixed ? null : marks
+        }
         const plan: Edit[][] = []
         for (const tr of transactions) {
           const start = tr.startState.doc
@@ -163,11 +178,6 @@ export function automergeSyncPlugin({
               for (let i = from; i < to; i++) {
                 if (units[i].kind !== "char") return (simple = false)
               }
-              // an insertion or deletion at a block boundary could just as
-              // well belong to the block on either side: leave it to
-              // updateSpans
-              if (units[from - 1]?.kind !== "char" && units[to]?.kind !== "char")
-                return (simple = false)
               // only text comes in
               let text = ""
               for (const token of inserted.content) {
@@ -175,23 +185,26 @@ export function automergeSyncPlugin({
                 if (typeof node.is !== "function" || !node.is(Leaf.Text)) return (simple = false)
                 text += node.param as string
               }
-              // and it ends up with one set of marks. (The inserted slice
-              // carries mark changes, not the final marks: read those from
-              // the new document.)
-              let marks: Mark.Set | null = null
-              if (text)
-                tr.newDoc.iterate(fromB, toB, node => {
-                  if (!node.is(Leaf.Text)) return
-                  if (marks && !Mark.sameSet(marks, node.marks)) simple = false
-                  marks = node.marks
-                })
-              if (!simple || (text && !marks)) return (simple = false)
-              edits.push({
-                index: from,
-                del: to - from,
-                text,
-                marks: marks ? amMarksFromMarks(adapter, marks) : {},
-              })
+              let marks: am.MarkSet = {}
+              let explicit: string[] | null = null
+              if (text) {
+                // the marks it ends up with, from the new document (the
+                // inserted slice carries mark changes, not final marks)
+                const wanted = marksOf(tr.newDoc, fromB, toB)
+                if (!wanted) return (simple = false)
+                marks = amMarksFromMarks(adapter, wanted)
+                const before = units[from - 1]?.kind === "char" ? marksOf(start, fromA - 1, fromA) : null
+                const after = units[to]?.kind === "char" ? marksOf(start, toA, toA + 1) : null
+                const inside =
+                  before && after && Mark.sameSet(before, wanted) && Mark.sameSet(after, wanted)
+                if (!inside) {
+                  const names = new Set(Object.keys(marks))
+                  for (const side of [before, after])
+                    if (side) for (const name of Object.keys(amMarksFromMarks(adapter, side))) names.add(name)
+                  explicit = [...names]
+                }
+              }
+              edits.push({ index: from, del: to - from, text, marks, explicit })
             },
             (_fromA, _toA, _fromB, _toB, modifications) => {
               if (modifications) simple = false
@@ -201,19 +214,19 @@ export function automergeSyncPlugin({
           plan.push(edits)
         }
 
-        let marksMatch = true
         for (const edits of plan) {
           // right to left, so each index still means what it did
           for (const edit of edits.reverse()) {
             am.splice(doc, path.slice(), edit.index, edit.del, edit.text)
-            if (!edit.text) continue
-            const got: { [key: string]: am.MarkValue } = {}
-            for (const [k, v] of Object.entries(am.marksAt(doc, path.slice(), edit.index)))
-              if (v != null) got[k] = v
-            if (!sameMarks(got, edit.marks)) marksMatch = false
+            if (!edit.explicit) continue
+            const range = { start: edit.index, end: edit.index + edit.text.length, expand: "none" as const }
+            for (const name of edit.explicit) {
+              if (name in edit.marks) am.mark(doc, path.slice(), range, name, edit.marks[name])
+              else am.unmark(doc, path.slice(), range, name)
+            }
           }
         }
-        return marksMatch
+        return true
       }
 
       receiveRemote() {
@@ -249,8 +262,3 @@ export function automergeSyncPlugin({
   )
 }
 
-function sameMarks(a: am.MarkSet, b: am.MarkSet): boolean {
-  const keys = Object.keys(a)
-  if (keys.length !== Object.keys(b).length) return false
-  return keys.every(k => JSON.stringify(a[k]) === JSON.stringify(b[k]))
-}
