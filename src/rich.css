@@ -2,30 +2,47 @@
   :root,
   :host,
   [theme] {
-    --rich-fill: var(--editor-fill, white);
-    --rich-line: var(--editor-line, black);
-    --rich-muted: var(--editor-line-offset-50, #8a8a8e);
-    --rich-faint: var(--editor-line-offset-70, #b6b6ba);
-    --rich-border: var(--editor-fill-offset-20, #e3e3e6);
-    --rich-family: var(--editor-family-sans, ui-sans-serif, system-ui, sans-serif);
-    --rich-mono: var(--editor-family-mono, "Fantasque Sans Mono", ui-monospace, SFMono-Regular, Menlo, monospace);
-    /* lush's accent */
+    /* The page and its ink follow the host's theme when it sets one, and
+       the light or dark scheme otherwise (lush's text background and label
+       colour). tool.js tells the page which scheme a host's fill is. */
+    --rich-fill: var(--editor-fill, light-dark(#ffffff, #1e1e1e));
+    --rich-line: var(--editor-line, light-dark(#1d1d1f, #f2f2f5));
+    /* lush's secondary label: the ink at half strength */
+    --rich-muted: color-mix(in oklch, var(--rich-line) 50%, var(--rich-fill));
+    --rich-faint: color-mix(in oklch, var(--rich-line) 30%, var(--rich-fill));
+    --rich-border: color-mix(in oklch, var(--rich-line) 12%, var(--rich-fill));
+    /* lush's fonts (fonts.js loads them): Jost, Merriweather, Fantasque Sans
+       Mono and Caroni. */
+    --rich-family: "Rich Jost", var(--editor-family-sans, ui-sans-serif, system-ui, sans-serif);
+    --rich-mono: "Rich Fantasque", var(--editor-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+    --rich-serif: "Rich Merriweather", "New York", "Iowan Old Style", Georgia, serif;
+    --rich-hand: "Rich Caroni", "Snell Roundhand", "Bradley Hand", "Segoe Print", "Marker Felt", cursive;
+    /* lush's accent, the same in both schemes */
     --rich-accent: #ff69a5;
-    --rich-link: var(--studio-link, #2f6fe4);
-    --rich-panel: color-mix(in oklch, var(--editor-fill, white), var(--editor-line, black) 4%);
-    --rich-sunk: color-mix(in oklch, var(--editor-fill, white), var(--editor-line, black) 6%);
-    --rich-shadow: 0 8px 24px -8px color-mix(in oklch, var(--editor-line, black) 35%, transparent);
+    --rich-on-accent: var(--rich-fill);
+    --rich-link: var(--rich-accent);
+    --rich-panel: color-mix(in oklch, var(--rich-fill), var(--rich-line) 4%);
+    --rich-sunk: color-mix(in oklch, var(--rich-fill), var(--rich-line) 6%);
+    --rich-shadow: 0 8px 24px -8px color-mix(in oklch, var(--rich-line) 35%, transparent);
+    /* lush's cards (ListMarkerLayoutFragment.swift, CodeHighlight.swift) */
+    --rich-quote-fill: light-dark(rgb(255 240 214 / 0.36), rgb(255 255 255 / 0.035));
+    --rich-quote-bar: light-dark(rgb(255 77 151 / 0.9), rgb(255 176 210 / 0.95));
+    --rich-code-fill: light-dark(#f9fcff, #1a1b1e);
+    --rich-code-border: light-dark(#e3f6ff, #44475a);
+    /* lush's body size (macOS "M") and Jost's own line height */
+    --rich-size: 16px;
+    --rich-leading: 1.445;
     --rich-measure: 42rem;
-    /* The least room beside the text column. */
-    --rich-gutter: 24px;
+    /* The least room beside the text column: lush's 20px inset and 5px of
+       line padding. */
+    --rich-gutter: 25px;
     /* The height of the top bar the note scrolls under. */
-    --rich-bar: 56px;
-    --rich-serif: "Merriweather", "New York", "Iowan Old Style", Georgia, serif;
-    --rich-hand: "Caroni", "Snell Roundhand", "Bradley Hand", "Segoe Print", "Marker Felt", "Chalkboard SE", cursive;
+    --rich-bar: 52px;
   }
 }
 
 .rich-tool {
+  color-scheme: light dark;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -57,9 +74,9 @@
    wordgard measures the cursor of an empty block from the content box's own
    origin and lands in the wrong place when that box is offset. */
 .rich-tool .rich-page wg-content {
-  padding: calc(var(--rich-bar) + 1.5rem) max(var(--rich-gutter), calc((100% - var(--rich-measure)) / 2)) 40vh;
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  padding: calc(var(--rich-bar) + 16px) max(var(--rich-gutter), calc((100% - var(--rich-measure)) / 2)) 40vh;
+  font-size: var(--rich-size);
+  line-height: var(--rich-leading);
   -webkit-font-smoothing: antialiased;
   hyphens: auto;
 }
@@ -70,9 +87,6 @@
   margin: 0;
 }
 
-.rich-tool .rich-page wg-content > pre,
-.rich-tool .rich-page wg-content > ul,
-.rich-tool .rich-page wg-content > ol,
 .rich-tool .rich-page wg-content > img,
 .rich-tool .rich-page wg-content > hr {
   margin: 0.7em 0;
@@ -85,50 +99,149 @@
 .rich-tool .rich-page wg-content h1,
 .rich-tool .rich-page wg-content h2,
 .rich-tool .rich-page wg-content h3,
-.rich-tool .rich-page wg-content h4 {
-  font-weight: 640;
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-  margin: 1.6em 0 0.4em;
+.rich-tool .rich-page wg-content h4,
+.rich-tool .rich-page wg-content h5,
+.rich-tool .rich-page wg-content h6 {
+  line-height: var(--rich-leading);
+  /* lush: 10pt before a heading, 6pt after */
+  margin: 10px 0 6px;
 }
 
-.rich-tool .rich-page wg-content h1 { font-size: 1.6rem; }
-.rich-tool .rich-page wg-content h2 { font-size: 1.3rem; }
-.rich-tool .rich-page wg-content h3 { font-size: 1.1rem; }
+/* Jost's bold, as lush draws it */
+.rich-tool .rich-page wg-content strong {
+  font-weight: 600;
+}
 
+/* A quote is a card: lush's cream (a whisper of white in the dark) with a
+   pink bar down its left, the text 16pt in. */
 .rich-tool .rich-page wg-content blockquote {
-  margin: 0.8em 0;
-  padding-left: 1rem;
-  border-left: 3px solid var(--rich-border);
-  background: var(--text-editor-fill-offset-10, var(--editor-fill-offset-10, #f5f5f5));
+  position: relative;
+  margin: 2px 24px 2px -2px;
+  padding: 2px 8px 2px 18px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--rich-quote-fill);
   color: var(--rich-line);
 }
 
+.rich-tool .rich-page wg-content blockquote::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 4px;
+  bottom: 4px;
+  width: 3.5px;
+  border-radius: 1.75px;
+  background: var(--rich-quote-bar);
+  pointer-events: none;
+}
+
+.rich-tool .rich-page wg-content blockquote blockquote {
+  margin-right: 0;
+}
+
+/* A code block is a card too, the lines 12pt inside it. */
 .rich-tool .rich-page wg-content pre {
   font-family: var(--rich-mono);
-  font-size: 0.9em;
-  background: var(--rich-sunk);
-  border-radius: 6px;
-  padding: 0.75rem 0.9rem;
+  font-size: 0.92em;
+  line-height: 1.35;
+  margin: 4px -2.5px;
+  padding: 4px 12px 4px 14.5px;
+  border: 1px solid var(--rich-code-border);
+  border-radius: 8px;
+  background: var(--rich-code-fill);
   overflow-x: auto;
 }
 
 .rich-tool .rich-page wg-content code {
   font-family: var(--rich-mono);
-  font-size: 0.9em;
-  background: var(--rich-sunk);
+  font-size: calc(1em - 1px);
+  background: var(--rich-code-fill);
+  /* the card's own edge, or the fill alone is lost on a white page */
+  box-shadow: inset 0 0 0 1px var(--rich-code-border);
   border-radius: 4px;
-  padding: 0.1em 0.3em;
+  padding: 0.05em 0.25em;
 }
+
+.rich-tool .rich-page wg-content sup,
+.rich-tool .rich-page wg-content sub {
+  font-size: 0.72em;
+  line-height: 0;
+}
+
+/* lush shifts the baseline by 0.38 (or -0.18) of the text's own size */
+.rich-tool .rich-page wg-content sup { vertical-align: calc(0.38em / 0.72); }
+.rich-tool .rich-page wg-content sub { vertical-align: calc(-0.18em / 0.72); }
 
 .rich-tool .rich-page wg-content pre code {
   background: none;
+  box-shadow: none;
   padding: 0;
 }
 
+/* 28pt a level, the marker right-aligned in that column */
 .rich-tool .rich-page wg-content ul,
 .rich-tool .rich-page wg-content ol {
-  padding-left: 1.4rem;
+  padding-left: 28px;
+}
+
+.rich-tool .rich-page wg-content ol > li {
+  font-variant-numeric: tabular-nums;
+}
+
+.rich-tool .rich-page wg-content ol > li::marker {
+  color: var(--rich-line);
+}
+
+/* Bullets are drawn, as lush draws them: a dot, then a ring, then a square,
+   6.5pt, centred on the x-height a font-size wide slot left of the text. */
+.rich-tool .rich-page wg-content ul:not(.rich-todo-list) > li {
+  position: relative;
+  list-style: none;
+}
+
+.rich-tool .rich-page wg-content ul:not(.rich-todo-list) > li::before {
+  content: "";
+  position: absolute;
+  left: calc(-1px - 0.47em - 3.25px);
+  top: calc(var(--rich-leading) * 0.5em - 3.25px + 0.08em);
+  width: 6.5px;
+  height: 6.5px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--rich-line);
+  pointer-events: none;
+}
+
+/* Depth counts every list the bullet is in; the more lists, the more specific. */
+.rich-tool .rich-page wg-content :is(ul, ol) ul:not(.rich-todo-list) > li::before {
+  background: none;
+  border: 1.2px solid var(--rich-line);
+  border-radius: 50%;
+}
+
+.rich-tool .rich-page wg-content :is(ul, ol) :is(ul, ol) ul:not(.rich-todo-list) > li::before {
+  border: 0;
+  border-radius: 0;
+  background: var(--rich-line);
+}
+
+.rich-tool .rich-page wg-content :is(ul, ol) :is(ul, ol) :is(ul, ol) ul:not(.rich-todo-list) > li::before {
+  border: 0;
+  border-radius: 50%;
+  background: var(--rich-line);
+}
+
+.rich-tool .rich-page wg-content :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) ul:not(.rich-todo-list) > li::before {
+  background: none;
+  border: 1.2px solid var(--rich-line);
+  border-radius: 50%;
+}
+
+.rich-tool .rich-page wg-content :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) :is(ul, ol) ul:not(.rich-todo-list) > li::before {
+  border: 0;
+  border-radius: 0;
+  background: var(--rich-line);
 }
 
 /* Depth reads in the marker: 1. then a. then i., then round again. Browsers
@@ -157,10 +270,12 @@
   margin: 0;
 }
 
-/* A to-do list draws its own box in the space the marker would use. The item
-   carries `data-checked` when it is done — see todo-list.js, which turns a
-   click in that space into a change. */
-/* The padding is on the ITEM, not the list: the box has to sit inside the
+/* A to-do list draws lush's box in the marker column: a rounded square 0.94
+   of the text size, right-aligned a point left of the text and centred on the
+   x-height. Open is an outline; done is filled pink with a tick; canceled is
+   filled grey with an X; pending is an outline with a pink slash. The text is
+   left as it is, whatever the state. See todo-list.js for the clicks.
+   The padding is on the ITEM, not the list: the box has to sit inside the
    item's own box for a click on it to land on the item. */
 .rich-tool .rich-page wg-content ul.rich-todo-list {
   list-style: none;
@@ -169,42 +284,74 @@
 
 .rich-tool .rich-page wg-content ul.rich-todo-list > li {
   position: relative;
-  padding-left: 1.6rem;
+  padding-left: 28px;
+  --rich-box: 0.94em;
+  --rich-box-left: calc(28px - 1px - var(--rich-box));
+  --rich-box-top: calc(var(--rich-leading) * 0.5em - var(--rich-box) / 2 + 0.06em);
+}
+
+.rich-tool .rich-page wg-content ul.rich-todo-list > li::before,
+.rich-tool .rich-page wg-content ul.rich-todo-list > li::after {
+  content: "";
+  position: absolute;
+  left: var(--rich-box-left);
+  top: var(--rich-box-top);
+  width: var(--rich-box);
+  height: var(--rich-box);
+  box-sizing: border-box;
+  border-radius: calc(var(--rich-box) * 0.34);
 }
 
 .rich-tool .rich-page wg-content ul.rich-todo-list > li::before {
-  content: "";
-  position: absolute;
-  left: 0.25rem;
-  top: 0.38em;
-  width: 0.85em;
-  height: 0.85em;
-  border: 1.5px solid var(--rich-border);
-  border-radius: 4px;
+  border: 1px solid color-mix(in oklch, var(--rich-muted) 50%, transparent);
   cursor: pointer;
 }
 
+.rich-tool .rich-page wg-content ul.rich-todo-list > li::after {
+  pointer-events: none;
+  -webkit-mask: var(--rich-glyph) center / 100% 100% no-repeat;
+  mask: var(--rich-glyph) center / 100% 100% no-repeat;
+}
+
 .rich-tool .rich-page wg-content ul.rich-todo-list > li[data-checked]::before {
-  border-color: var(--rich-accent);
+  border: 0;
   background: var(--rich-accent);
 }
 
-/* The tick: two strokes of the box's own border, rotated. */
 .rich-tool .rich-page wg-content ul.rich-todo-list > li[data-checked]::after {
-  content: "";
-  position: absolute;
-  left: 0.48rem;
-  top: 0.52em;
-  width: 0.2em;
-  height: 0.45em;
-  border: solid var(--rich-fill);
-  border-width: 0 2px 2px 0;
-  rotate: 45deg;
-  pointer-events: none;
+  --rich-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Cpath d='M.184 .5L.381 .698L.816 .263' fill='none' stroke='black' stroke-width='.12' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background: var(--rich-on-accent);
 }
 
-.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-checked] {
-  color: var(--rich-muted);
+.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="canceled"]::before {
+  border: 0;
+  background: color-mix(in oklch, var(--rich-muted) 55%, transparent);
+}
+
+.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="canceled"]::after {
+  --rich-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Cpath d='M.2625 .2625L.7375 .7375M.7375 .2625L.2625 .7375' fill='none' stroke='black' stroke-width='.12' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background: var(--rich-on-accent);
+}
+
+.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="pending"]::after {
+  --rich-glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'%3E%3Cpath d='M.2625 .7375L.7375 .2625' fill='none' stroke='black' stroke-width='.12' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background: var(--rich-accent);
+}
+
+/* ••• › Hide Checked Items folds the done ones away. */
+.rich-tool.rich-hide-checked .rich-page wg-content ul.rich-todo-list > li[data-checked] {
+  display: none;
+}
+
+/* The four states, on a right-click of the box. */
+.rich-popover.rich-todo-menu {
+  position: fixed;
+  z-index: 50;
+}
+
+.rich-todo-menu .rich-popover-body {
+  min-width: 150px;
+  padding: 5px;
 }
 
 /* A list item holds block content, so each line is a paragraph inside the
@@ -228,6 +375,7 @@
 
 .rich-tool .rich-page wg-content a {
   color: var(--rich-link);
+  text-decoration: underline 1px;
   text-underline-offset: 2px;
 }
 
@@ -711,10 +859,20 @@
 .rich-tool .rich-page wg-content h3,
 .rich-tool .rich-page wg-content h4,
 .rich-tool .rich-page wg-content h5,
-.rich-tool .rich-page wg-content h6 { font-size: 1.15em; font-weight: 650; }
+.rich-tool .rich-page wg-content h6 { font-size: 1.15em; font-weight: 600; }
 
-.rich-tool .rich-font-serif { font-family: var(--rich-serif); }
-.rich-tool .rich-font-hand { font-family: var(--rich-hand); font-size: 1.15em; }
+/* A font mark swaps the family and keeps the block's size and weight, give
+   or take each face's own scale: Merriweather is set a touch smaller and
+   lighter, Caroni a touch larger. */
+.rich-tool .rich-font-serif {
+  font-family: var(--rich-serif);
+  font-size: 0.94em;
+  font-weight: 300;
+  line-height: 1.26;
+}
+.rich-tool :is(strong, h1, h2, h3, h4, h5, h6) .rich-font-serif,
+.rich-tool .rich-font-serif strong { font-weight: 600; }
+.rich-tool .rich-font-hand { font-family: var(--rich-hand); font-size: 1.15em; line-height: 1.2; }
 
 /* lush's `indent`: 20pt a level */
 .rich-tool .rich-page wg-content [data-indent="1"] { margin-left: 20px; }
@@ -725,34 +883,6 @@
 .rich-tool .rich-page wg-content [data-indent="6"] { margin-left: 120px; }
 .rich-tool .rich-page wg-content [data-indent="7"] { margin-left: 140px; }
 .rich-tool .rich-page wg-content [data-indent="8"] { margin-left: 160px; }
-
-/* A canceled to-do is struck out, a pending one half done. */
-.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="canceled"] {
-  color: var(--rich-muted);
-  text-decoration: line-through;
-}
-.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="canceled"]::after,
-.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="pending"]::after {
-  content: "";
-  position: absolute;
-  left: 0.44rem;
-  top: calc(0.38em + 0.36em);
-  width: 0.55em;
-  height: 1.5px;
-  background: var(--rich-muted);
-  pointer-events: none;
-}
-.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="canceled"]::after {
-  rotate: 45deg;
-  box-shadow: none;
-}
-.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="pending"]::before {
-  border-color: var(--rich-accent);
-  background: linear-gradient(135deg, var(--rich-accent) 50%, transparent 50%);
-}
-.rich-tool .rich-page wg-content ul.rich-todo-list > li[data-state="pending"]::after {
-  display: none;
-}
 
 /* Every embed is a line of its own. */
 .rich-tool .rich-page wg-content rich-embed,
@@ -772,17 +902,19 @@
 }
 
 .rich-tool.rich-has-topbar .rich-page wg-scroller {
+  /* lush's ToolbarScrollFade: gone at the very top, half there where the bar
+     ends, whole 24pt below it */
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    transparent calc(var(--rich-bar) * 0.45),
-    #000 calc(var(--rich-bar) + 14px)
+    rgb(0 0 0 / 0.5) var(--rich-bar),
+    #000 calc(var(--rich-bar) + 24px)
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    transparent calc(var(--rich-bar) * 0.45),
-    #000 calc(var(--rich-bar) + 14px)
+    rgb(0 0 0 / 0.5) var(--rich-bar),
+    #000 calc(var(--rich-bar) + 24px)
   );
 }
 
@@ -1058,34 +1190,90 @@
   color: var(--rich-line);
 }
 
-.rich-link-editor {
+/* Sheets: the Link editor (and the Patchwork Doc picker). A card over a
+   dimmed note, as lush's sheets are. */
+.rich-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: start center;
+  padding: calc(var(--rich-bar) + 12px) 16px 16px;
+  background: color-mix(in oklch, var(--rich-line) 12%, transparent);
+  font: 13px/1.3 var(--rich-family);
+  color: var(--rich-line);
+  animation: rich-fade 120ms ease-out;
+}
+
+@keyframes rich-fade {
+  from { opacity: 0; }
+}
+
+.rich-sheet > form,
+.rich-sheet > .rich-sheet-card {
+  box-sizing: border-box;
+  width: min(380px, 100%);
   display: flex;
-  gap: 4px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: color-mix(in oklch, var(--rich-fill) 94%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  border: 0.5px solid color-mix(in oklch, var(--rich-line) 14%, transparent);
+  box-shadow: 0 18px 50px -12px color-mix(in oklch, var(--rich-line) 40%, transparent);
+}
+
+.rich-sheet-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rich-sheet-buttons {
+  display: flex;
+  gap: 8px;
   align-items: center;
 }
-.rich-link-input {
+
+.rich-sheet-spacer {
   flex: 1;
-  min-width: 0;
-  padding: 4px 8px;
-  border: 0.5px solid color-mix(in oklch, var(--rich-line) 20%, transparent);
+}
+
+.rich-link-input,
+.rich-sheet input[type="text"] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 9px;
+  border: 0.5px solid color-mix(in oklch, var(--rich-line) 22%, transparent);
   border-radius: 7px;
   background: var(--rich-fill);
   color: var(--rich-line);
-  font: 12px var(--rich-family);
+  font: 13px var(--rich-family);
   outline: none;
 }
-.rich-link-input:focus { border-color: var(--rich-accent); }
-.rich-link-submit,
-.rich-link-remove {
-  all: unset;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 7px;
-  font-size: 12px;
-  color: var(--rich-accent);
+.rich-link-input:focus,
+.rich-sheet input[type="text"]:focus {
+  border-color: var(--rich-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--rich-accent) 22%, transparent);
 }
-.rich-link-submit:hover,
-.rich-link-remove:hover { background: color-mix(in oklch, var(--rich-accent) 14%, transparent); }
+
+.rich-button {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font: 13px var(--rich-family);
+  color: var(--rich-line);
+  background: color-mix(in oklch, var(--rich-line) 8%, transparent);
+}
+.rich-button:hover:not([disabled]) { background: color-mix(in oklch, var(--rich-line) 14%, transparent); }
+.rich-button:focus-visible { outline: 2px solid var(--rich-accent); outline-offset: 1px; }
+.rich-button.prominent { background: var(--rich-accent); color: #fff; font-weight: 500; }
+.rich-button.prominent:hover:not([disabled]) { background: color-mix(in oklch, var(--rich-accent) 88%, black); }
+.rich-button[disabled] { opacity: 0.4; cursor: default; }
 
 /* Menus: the paperclip's and the •••'s. */
 .rich-attach-menu .rich-popover-body,
@@ -1194,4 +1382,219 @@
   cursor: pointer;
   color: var(--rich-accent);
   font-size: 12px;
+}
+
+.rich-menu-shortcut {
+  margin-left: auto;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--rich-muted);
+}
+.rich-menu-item:hover:not([disabled]) .rich-menu-shortcut { color: color-mix(in oklch, white 80%, transparent); }
+.rich-menu-label { white-space: nowrap; }
+
+/* The (i) popover: Info and Outline tabs. */
+.rich-info-popover .rich-popover-body { width: 280px; }
+.rich-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 8px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--rich-line) 6%, transparent);
+}
+.rich-tab {
+  all: unset;
+  box-sizing: border-box;
+  flex: 1;
+  text-align: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rich-tab.active {
+  background: var(--rich-fill);
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--rich-line) 18%, transparent);
+  font-weight: 600;
+}
+.rich-info-section + .rich-info-section { margin-top: 8px; }
+.rich-info-section h4 {
+  margin: 0 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--rich-muted);
+}
+.rich-outline { display: flex; flex-direction: column; }
+.rich-outline-item {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rich-outline-item:hover { background: color-mix(in oklch, var(--rich-line) 7%, transparent); }
+.rich-outline-item.level-1 { font-weight: 600; }
+.rich-outline-item.level-3 { color: var(--rich-muted); }
+.rich-outline-empty { margin: 4px 2px; color: var(--rich-muted); font-size: 12px; }
+.rich-info.open { color: var(--rich-accent); }
+
+/* Phone width: the format popover becomes lush's bottom island. */
+.rich-popover.rich-island {
+  position: absolute;
+  left: 12px !important;
+  right: 12px;
+  bottom: 12px;
+  top: auto !important;
+  margin: 0 auto;
+  max-width: 440px;
+  height: 264px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;
+  background: color-mix(in oklch, var(--rich-fill) 88%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  border: 0.5px solid color-mix(in oklch, var(--rich-line) 14%, transparent);
+  box-shadow: 0 18px 50px -12px color-mix(in oklch, var(--rich-line) 40%, transparent);
+  animation: rich-rise 180ms ease-out;
+  overflow: hidden;
+}
+.rich-popover.rich-island.rich-in-code { height: 316px; }
+@keyframes rich-rise {
+  from { opacity: 0; transform: translateY(16px); }
+}
+.rich-island .rich-popover-arrow { display: none; }
+.rich-island-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 4px 20px;
+}
+.rich-island-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.rich-island-close {
+  all: unset;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--rich-muted);
+}
+.rich-island .rich-popover-body {
+  flex: 1;
+  min-height: 0;
+  width: auto !important;
+  max-height: none;
+  padding: 6px 16px 16px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* The Patchwork Doc… sheet. */
+.rich-doc-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+}
+.rich-doc-type {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  background: color-mix(in oklch, var(--rich-line) 5%, transparent);
+  color: var(--rich-line);
+}
+.rich-doc-type svg { color: var(--rich-accent); flex: none; }
+.rich-doc-type:hover,
+.rich-doc-type:focus-visible { background: color-mix(in oklch, var(--rich-accent) 16%, transparent); }
+.rich-sheet-label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--rich-muted); }
+.rich-sheet-note,
+.rich-sheet-status { margin: 0; font-size: 12px; color: var(--rich-muted); }
+.rich-sheet-status:empty { display: none; }
+
+/* Find in note: a bar under the top bar. */
+.rich-find {
+  position: absolute;
+  top: calc(var(--rich-bar) - 2px);
+  left: 50%;
+  translate: -50% 0;
+  z-index: 35;
+  width: min(520px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 18px;
+  background: color-mix(in oklch, var(--rich-fill) 88%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  backdrop-filter: blur(20px) saturate(1.8);
+  border: 0.5px solid color-mix(in oklch, var(--rich-line) 12%, transparent);
+  box-shadow: var(--rich-shadow);
+  font: 13px var(--rich-family);
+  color: var(--rich-line);
+}
+.rich-find-row { display: flex; align-items: center; gap: 6px; }
+.rich-find-row[hidden] { display: none; }
+.rich-find-toggle,
+.rich-find-clear,
+.rich-find-step {
+  all: unset;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: var(--rich-muted);
+}
+.rich-find-toggle { width: 18px; height: 24px; transition: rotate 120ms ease; }
+.rich-find-toggle.open { rotate: 90deg; }
+.rich-find-toggle-space { width: 18px; flex: none; }
+.rich-find-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  height: 28px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--rich-line) 7%, transparent);
+  color: var(--rich-muted);
+}
+.rich-find-field:focus-within { box-shadow: 0 0 0 2px color-mix(in oklch, var(--rich-accent) 45%, transparent); }
+.rich-find-input {
+  all: unset;
+  flex: 1;
+  min-width: 0;
+  color: var(--rich-line);
+  font: 13px var(--rich-family);
+}
+.rich-find-count { font-size: 12px; font-variant-numeric: tabular-nums; }
+.rich-find-clear[hidden] { display: none; }
+.rich-find-steps {
+  display: flex;
+  height: 28px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--rich-line) 7%, transparent);
+}
+.rich-find-step { width: 28px; color: var(--rich-line); }
+.rich-find-step:hover { color: var(--rich-accent); }
+.rich-tool .rich-find-match {
+  background: color-mix(in oklch, #808080 40%, transparent);
+  border-radius: 2px;
+}
+.rich-tool .rich-find-current {
+  background: #ffee88;
+  color: #333333;
 }

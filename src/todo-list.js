@@ -121,8 +121,15 @@ const applyBracketState = Wordgard.Plugin.define(wg => ({
   },
 })).extension
 
-export function todoLists() {
-  return [createOnBrackets.extension, applyBracketState, todoChecking()]
+// `wrap` lets the caller take the bracket rule over inside lists and quotes
+// (see triggers.js, which imports this module).
+export function todoLists(wrap = rule => rule) {
+  return [
+    wrap(createOnBrackets, match => ({ id: "todo", todo: BRACKET_STATES[match[1]?.text ?? ""] ?? "open" })).extension,
+    applyBracketState,
+    todoChecking(),
+    todoStateMenu(),
+  ]
 }
 
 function todoChecking() {
@@ -138,4 +145,138 @@ function todoChecking() {
     })
     return true
   })
+}
+
+// Right-click on the box: lush's menu of the four states.
+const STATE_LABELS = [
+  ["open", "To-do"],
+  ["checked", "Done"],
+  ["canceled", "Canceled"],
+  ["pending", "Pending"],
+]
+
+function todoStateMenu() {
+  return Wordgard.domEventHandler("contextmenu", (event, wg) => {
+    const found = todoItemAt(wg, event.target)
+    if (!found || !onTheBox(event, found.element)) return false
+    event.preventDefault()
+    openTodoMenu(wg, found, event.clientX, event.clientY)
+    return true
+  })
+}
+
+export function openTodoMenu(wg, found, x, y) {
+  const host = wg.dom.closest(".rich-tool") ?? document.body
+  host.querySelector(".rich-todo-menu")?.remove()
+  const current = todoStateOf(found.node.tag)
+  const menu = document.createElement("div")
+  menu.className = "rich-popover rich-todo-menu"
+  menu.setAttribute("role", "menu")
+  const body = document.createElement("div")
+  body.className = "rich-popover-body"
+  menu.append(body)
+  const close = () => {
+    menu.remove()
+    document.removeEventListener("mousedown", outside, true)
+    document.removeEventListener("keydown", escape, true)
+  }
+  const outside = event => {
+    if (!menu.contains(event.target)) close()
+  }
+  const escape = event => {
+    if (event.key !== "Escape") return
+    event.preventDefault()
+    close()
+    wg.focus()
+  }
+  for (const [state, label] of STATE_LABELS) {
+    const item = document.createElement("button")
+    item.type = "button"
+    item.className = "rich-menu-item"
+    item.setAttribute("role", "menuitemradio")
+    item.setAttribute("aria-checked", String(state === current))
+    item.dataset.state = state
+    const check = document.createElement("span")
+    check.className = "rich-menu-glyph"
+    check.textContent = state === current ? "✓" : ""
+    const text = document.createElement("span")
+    text.className = "rich-menu-label"
+    text.textContent = label
+    item.append(check, text)
+    item.addEventListener("mousedown", event => event.preventDefault())
+    item.addEventListener("click", event => {
+      event.preventDefault()
+      close()
+      // the item may have moved while the menu was open
+      const now = wg.nodeFromDOM(found.element) ?? found
+      const changes = todoStateChanges(now.node.tag, now.pos, state)
+      if (changes.length) wg.dispatch({ changes, userEvent: "todo.state" })
+    })
+    body.append(item)
+  }
+  host.append(menu)
+  const width = menu.offsetWidth
+  const height = menu.offsetHeight
+  menu.style.left = `${Math.max(8, Math.min(x, innerWidth - width - 8))}px`
+  menu.style.top = `${Math.max(8, Math.min(y, innerHeight - height - 8))}px`
+  document.addEventListener("mousedown", outside, true)
+  document.addEventListener("keydown", escape, true)
+  return menu
+}
+
+// ••• › Move Checked to Bottom and Delete Checked Items, lush's list actions.
+// Both work on every to-do list in the note; an item takes what is nested in
+// it along.
+const itemsOf = list => list.content.filter(node => node.isPlot)
+
+function outerTodoLists(doc) {
+  const lists = []
+  doc.iterate((node, pos) => {
+    if (!node.isPlot || node.type !== TodoList.type) return
+    lists.push({ node, pos })
+    return false
+  })
+  return lists
+}
+
+export function moveCheckedToBottom(wg) {
+  const changes = []
+  for (const { node, pos } of outerTodoLists(wg.state.doc)) {
+    const items = itemsOf(node)
+    const open = items.filter(item => !isChecked(item.tag))
+    const done = items.filter(item => isChecked(item.tag))
+    const sorted = [...open, ...done]
+    if (sorted.every((item, i) => item === items[i])) continue
+    changes.push({ from: pos + 1, to: pos + 1 + node.contentLength, insert: sorted })
+  }
+  if (!changes.length) return false
+  wg.dispatch({ changes, userEvent: "todo.move", scrollIntoView: false })
+  return true
+}
+
+export function deleteCheckedItems(wg) {
+  const changes = []
+  wg.state.doc.iterate((node, pos, parent) => {
+    if (!node.isPlot) return
+    // a list with nothing left in it goes as a whole
+    if (node.type === TodoList.type && itemsOf(node).every(item => isChecked(item.tag))) {
+      changes.push({ from: pos, to: pos + node.length, fit: true })
+      return false
+    }
+    if (!parent || parent.type !== TodoList.type || !isChecked(node.tag)) return
+    changes.push({ from: pos, to: pos + node.length, fit: true })
+    return false
+  })
+  if (!changes.length) return false
+  wg.dispatch({ changes, userEvent: "delete.todo", scrollIntoView: false })
+  return true
+}
+
+export const hasChecked = doc => {
+  let found = false
+  doc.iterate(node => {
+    if (found) return false
+    if (node.isPlot && node.tag && isChecked(node.tag)) found = true
+  })
+  return found
 }

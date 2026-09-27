@@ -14,15 +14,6 @@ import { Command, toggleMark } from "wordgard/command"
 import { Code, Strikethrough, Subscript, Superscript, Underline } from "wordgard/types"
 import { toggleBaseline } from "./baseline.js"
 
-// The top bar owns the popovers these open, so they are reached through its
-// DOM rather than imported.
-const press = (context, selector) => () => {
-  const button = context.element.querySelector(selector)
-  if (!button) return false
-  button.click()
-  return true
-}
-
 const later = (load, name) => wg => {
   load().then(module => module[name](wg))
   return true
@@ -40,10 +31,9 @@ function indent(wg, direction) {
   return true
 }
 
-// Cmd-K opens the Aa popover on its link row.
-function openLink(wg, context) {
-  if (!press(context, ".rich-aa")()) return false
-  queueMicrotask(() => context.element.querySelector(".rich-format-popover button[title='Link']")?.click())
+// Cmd-K opens the link editor.
+function openLink(wg) {
+  import("./topbar.js").then(bar => bar.openLinkEditor(wg))
   return true
 }
 
@@ -71,12 +61,16 @@ export function richKeys(context) {
       KeyBinding.of({ key: "Mod-,", run: wg => toggleBaseline(wg, Subscript) }),
       KeyBinding.of({ key: "Mod-Shift-,", run: wg => toggleBaseline(wg, Subscript) }),
     ]),
-    ...items
-      .filter(item => item.key)
-      .flatMap(item =>
-        [item.key]
-          .flat()
-          .map(key => KeyBinding.of({ key, run: run(item, context) })),
-      ),
+    // Ahead of wordgard's own bindings too: its paragraph binding takes
+    // Ctrl-Shift-0, which is To-do (Mod-Shift-0) wherever Mod is Ctrl.
+    GardState.prec.high(
+      items
+        .filter(item => item.key)
+        .flatMap(item =>
+          [item.key]
+            .flat()
+            .map(key => KeyBinding.of({ key, run: run(item, context) })),
+        ),
+    ),
   ]
 }

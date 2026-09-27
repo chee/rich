@@ -6,6 +6,7 @@
 // The popover is lush's FormatPopover, row for row: the marks, the fonts, the
 // highlights, the block styles each drawn in its own style, and the indent
 // pill — every one of them writing exactly what lush writes.
+import * as am from "@automerge/automerge"
 import { Dialog, Wordgard } from "wordgard/editor"
 import { Leaf } from "wordgard/doc"
 import { Command, selectedTextblocks, toggleMark } from "wordgard/command"
@@ -38,6 +39,10 @@ import { insertHtmlBlock } from "./html-block.js"
 import { insertBlocks } from "./insert.js"
 import { createFileDoc, pickFiles } from "./files.js"
 import { TABLE_ACTIONS, inTable } from "./tables.js"
+import { listPlugins, loadPlugin } from "./registry.js"
+import { getSupportedToolsForType } from "@inkandswitch/patchwork-plugins"
+import { openFind } from "./find.js"
+import { deleteCheckedItems, hasChecked, moveCheckedToBottom } from "./todo-list.js"
 
 export const ICONS = {
   paperclip: `<path d="M13.5 7.5l-5.6 5.6a3.2 3.2 0 01-4.5-4.5l6-6a2.1 2.1 0 013 3l-5.9 5.9a1 1 0 01-1.5-1.5L10.3 4.7"/>`,
@@ -51,6 +56,16 @@ export const ICONS = {
   check: `<path d="M3 8.5l3 3 7-7"/>`,
   photo: `<rect x="2" y="3" width="12" height="10" rx="1.5"/><circle cx="6" cy="6.5" r="1"/><path d="M3 11.5l3-3 2.5 2.5 2-1.5L13 12"/>`,
   mic: `<rect x="6" y="2" width="4" height="8" rx="2"/><path d="M3.5 8a4.5 4.5 0 009 0M8 12.5V14"/>`,
+  micFill: `<rect x="6" y="1.8" width="4" height="8.4" rx="2" fill="currentColor"/><path d="M3.5 8a4.5 4.5 0 009 0M8 12.5V14.2M5.8 14.2h4.4"/>`,
+  shippingbox: `<path d="M8 1.8l5.6 2.8v6.8L8 14.2l-5.6-2.8V4.6z"/><path d="M2.4 4.6L8 7.4l5.6-2.8M8 7.4v6.8M5.2 3.2l5.6 2.8"/>`,
+  find: `<circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2L13.5 13.5"/>`,
+  replace: `<circle cx="6.5" cy="6.5" r="3.6"/><path d="M9.2 9.2l2 2"/><path d="M10.5 13.5h4M12.5 11.5v4" transform="translate(-1 -1.5)"/>`,
+  export: `<path d="M9 2H4.5A1.5 1.5 0 003 3.5v9A1.5 1.5 0 004.5 14h7a1.5 1.5 0 001.5-1.5V6z"/><path d="M8 11.5V7M6 9l2-2 2 2"/>`,
+  checkBottom: `<rect x="2.5" y="9.5" width="4" height="4" rx="1.2"/><path d="M3.5 11.5l.8.8 1.5-1.6M9 11.5h4.5M9 4h4.5M2.5 4h4"/>`,
+  eyeSlash: `<path d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4z"/><circle cx="8" cy="8" r="1.8"/><path d="M3 13L13 3"/>`,
+  eye: `<path d="M2 8s2.2-4 6-4 6 4 6 4-2.2 4-6 4-6-4-6-4z"/><circle cx="8" cy="8" r="1.8"/>`,
+  trash: `<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5a1 1 0 001 1h3.8a1 1 0 001-1l.6-8.5"/>`,
+  close: `<circle cx="8" cy="8" r="6"/><path d="M5.8 5.8l4.4 4.4M10.2 5.8l-4.4 4.4"/>`,
   waveform: `<path d="M2 8h1M4.5 5.5v5M7 3v10M9.5 5v6M12 6.5v3M14 8h0"/>`,
   file: `<path d="M9 2H4.5A1.5 1.5 0 003 3.5v9A1.5 1.5 0 004.5 14h7a1.5 1.5 0 001.5-1.5V6z"/><path d="M9 2v4h4"/>`,
   clock: `<circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/>`,
@@ -196,6 +211,31 @@ class Popover {
   }
 
   place() {
+    // At phone width, a popover with a title is lush's bottom island
+    // instead: a card along the bottom, with its title and a close button.
+    const island = Boolean(this.title) && this.bar.narrow()
+    this.element.classList.toggle("rich-island", island)
+    if (island) {
+      if (!this.header) {
+        this.header = el(
+          "div",
+          { class: "rich-island-header" },
+          el("h3", {}, this.title),
+          makeButton("rich-island-close", "Close", svg(ICONS.close, 18), () => {
+            this.close()
+            this.bar.wg.focus()
+          }),
+        )
+      }
+      if (this.header.parentNode !== this.element) this.element.insertBefore(this.header, this.body)
+      // along the bottom of the whole note, not of the bar
+      if (this.element.parentNode !== this.bar.context.element) this.bar.context.element.append(this.element)
+      this.element.style.left = ""
+      this.element.style.top = ""
+      return
+    }
+    this.header?.remove()
+    if (this.element.parentNode !== this.bar.layer) this.bar.layer.append(this.element)
     const host = this.bar.layer.getBoundingClientRect()
     const button = this.anchor.getBoundingClientRect()
     const width = this.element.offsetWidth
@@ -216,7 +256,7 @@ class Popover {
   }
 }
 
-const button = (className, title, content, onpress) =>
+const makeButton = (className, title, content, onpress) =>
   el(
     "button",
     {
@@ -236,7 +276,7 @@ const button = (className, title, content, onpress) =>
     content,
   )
 
-const menuItem = (label, glyph, run, { disabled = false, danger = false } = {}) =>
+const menuItem = (label, glyph, run, { disabled = false, danger = false, shortcut = null } = {}) =>
   el(
     "button",
     {
@@ -251,6 +291,7 @@ const menuItem = (label, glyph, run, { disabled = false, danger = false } = {}) 
     },
     el("span", { class: "rich-menu-glyph" }, glyph ? svg(ICONS[glyph] ?? glyph, 14) : null),
     el("span", { class: "rich-menu-label" }, label),
+    shortcut ? el("span", { class: "rich-menu-shortcut", "aria-hidden": "true" }, shortcut) : null,
   )
 
 const divider = () => el("div", { class: "rich-popover-divider", role: "separator" })
@@ -270,10 +311,10 @@ const STYLE_MARKERS = { bullet: "•", ordered: "1.", todo: "☐", quote: "|" }
 function formatPopover(bar) {
   const { wg } = bar
   const popover = new Popover(bar, bar.aa, "rich-format-popover")
-  let linkEditing = null
+  popover.title = "Format"
 
   const markButton = (title, content, isActive, run) => {
-    const node = button("rich-mark-button", title, content, () => {
+    const node = makeButton("rich-mark-button", title, content, () => {
       run()
       render()
     })
@@ -282,60 +323,7 @@ function formatPopover(bar) {
     return node
   }
 
-  function linkRow(state) {
-    const existing = markIn(state, Link)
-    const { from, to } = state.selection
-    const input = el("input", {
-      class: "rich-link-input",
-      type: "url",
-      placeholder: "https://…",
-      value: existing?.value ?? "",
-    })
-    const restore = () => wg.dispatch({ selection: { anchor: from, head: to } })
-    const commit = href => {
-      restore()
-      if (existing) Command.dispatch(wg, toggleMark, existing)
-      if (href) Command.dispatch(wg, toggleMark, Link.of(href))
-      linkEditing = null
-      render()
-      wg.focus()
-    }
-    const form = el(
-      "form",
-      {
-        class: "rich-link-editor",
-        onsubmit: event => {
-          event.preventDefault()
-          commit(input.value.trim())
-        },
-      },
-      input,
-      el("button", { class: "rich-link-submit", type: "submit" }, existing ? "Update" : "Link"),
-      existing
-        ? el(
-            "button",
-            {
-              class: "rich-link-remove",
-              type: "button",
-              title: "Remove link",
-              onclick: event => {
-                event.preventDefault()
-                commit("")
-              },
-            },
-            svg(ICONS.none, 13),
-          )
-        : null,
-    )
-    queueMicrotask(() => {
-      input.focus()
-      input.select()
-    })
-    return form
-  }
-
   function render() {
-    if (popover.element.contains(document.activeElement) && linkEditing) return
     const state = wg.state
     const rows = []
 
@@ -352,7 +340,8 @@ function formatPopover(bar) {
           Command.dispatch(wg, toggleMark, Strikethrough),
         ),
         markButton("Link", svg(ICONS.link, 14), Boolean(markIn(state, Link)), () => {
-          linkEditing = linkEditing ? null : true
+          popover.close()
+          linkDialog(bar)
         }),
         el("span", { class: "rich-pill-divider" }),
         markButton("Superscript", el("span", { class: "rich-baseline-glyph" }, "A", el("sup", {}, "1")), baselineAt(state, Superscript), () =>
@@ -363,11 +352,10 @@ function formatPopover(bar) {
         ),
       ),
     )
-    if (linkEditing) rows.push(linkRow(state))
 
     const font = markIn(state, Font)?.value ?? null
-    const fontButton = (label, family, isActive, run) => {
-      const node = button(`rich-font-button rich-font-sample-${family}`, label, label, () => {
+    const fontButton = (label, family, isActive, run, title = label) => {
+      const node = makeButton(`rich-font-button rich-font-sample-${family}`, title, label, () => {
         run()
         render()
       })
@@ -384,7 +372,8 @@ function formatPopover(bar) {
             setValued(wg, Font, font === name ? null : name),
           ),
         ),
-        fontButton("Code", "mono", active(state, Code), () => Command.dispatch(wg, toggleMark, Code)),
+        // "Inline Code", so it and the Code block style read apart
+        fontButton("Code", "mono", active(state, Code), () => Command.dispatch(wg, toggleMark, Code), "Inline Code"),
       ),
     )
 
@@ -395,7 +384,7 @@ function formatPopover(bar) {
         { class: "rich-highlight-row" },
         el("span", { class: `rich-highlighter${highlight ? " active" : ""}` }, svg(ICONS.highlighter, 14)),
         ...HIGHLIGHTS.map(name => {
-          const node = button(`rich-swatch rich-highlight-${name}`, `${name[0].toUpperCase()}${name.slice(1)} Highlight`, null, () => {
+          const node = makeButton(`rich-swatch rich-highlight-${name}`, `${name[0].toUpperCase()}${name.slice(1)} Highlight`, null, () => {
             setHighlight(wg, highlight === name ? null : name)
             render()
           })
@@ -403,7 +392,7 @@ function formatPopover(bar) {
           node.classList.toggle("active", highlight === name)
           return node
         }),
-        button("rich-swatch-none", "No Highlight", svg(ICONS.none, 15), () => {
+        makeButton("rich-swatch-none", "No Highlight", svg(ICONS.none, 15), () => {
           setHighlight(wg, null)
           render()
         }),
@@ -418,7 +407,7 @@ function formatPopover(bar) {
       if (index > 0) rows.push(divider())
       for (const id of group) {
         const block = byId[id]
-        const node = button(`rich-style-row rich-style-${id}`, block.name, [
+        const node = makeButton(`rich-style-row rich-style-${id}`, block.name, [
           el("span", { class: "rich-style-check" }, id === current ? svg(ICONS.check, 11) : null),
           STYLE_MARKERS[id] ? el("span", { class: "rich-style-marker" }, STYLE_MARKERS[id]) : null,
           el("span", { class: "rich-style-label" }, block.name),
@@ -441,11 +430,11 @@ function formatPopover(bar) {
         el(
           "div",
           { class: "rich-pill" },
-          button("rich-mark-button", "Decrease Indent", svg(ICONS.outdent, 14), () => {
+          makeButton("rich-mark-button", "Decrease Indent", svg(ICONS.outdent, 14), () => {
             indentBlock(wg, -1)
             render()
           }),
-          button("rich-mark-button", "Increase Indent", svg(ICONS.indent, 14), () => {
+          makeButton("rich-mark-button", "Increase Indent", svg(ICONS.indent, 14), () => {
             indentBlock(wg, 1)
             render()
           }),
@@ -478,11 +467,146 @@ function formatPopover(bar) {
     }
 
     popover.body.replaceChildren(...rows)
+    popover.element.classList.toggle("rich-in-code", Boolean(code && code.node.type === CodeBlock.type))
   }
 
   popover.render = render
   render()
   return popover
+}
+
+// ---------------------------------------------------------------------------
+// The link editor: lush's Link sheet (MediaViews.swift), 380pt wide, a URL
+// field that takes Enter, and Remove · Cancel · Apply.
+// ---------------------------------------------------------------------------
+
+// What lush makes of what was typed: a URL with a scheme or a mailto: is kept,
+// an address becomes mailto:, anything else gets https:// in front.
+export function normalizeLink(text) {
+  const value = text.trim()
+  if (!value) return ""
+  if (value.includes("://") || /^mailto:/i.test(value)) return value
+  if (value.includes("@") && !value.includes("/")) return `mailto:${value}`
+  return `https://${value}`
+}
+
+// The link over the selection, and the range it covers: with the caret in a
+// link and nothing selected, the whole link.
+function linkRange(state) {
+  let { from, to } = state.selection
+  const existing = markIn(state, Link)
+  if (existing && from === to) {
+    const block = state.sel.head.textblockParent
+    if (block) {
+      let start = null
+      let end = null
+      state.doc.iterate(block.before, block.after, (node, pos) => {
+        if (!node.is(Leaf.Text)) return
+        const inLink = Link.isInSet(node.marks)?.value === existing.value
+        if (inLink && pos <= from && pos + node.length >= from && start == null) {
+          start = pos
+          end = pos + node.length
+        } else if (inLink && start != null && pos === end) end = pos + node.length
+      })
+      if (start != null) [from, to] = [start, end]
+    }
+  }
+  return { from, to, existing }
+}
+
+export function linkDialog(bar) {
+  const { wg, context } = bar
+  context.element.querySelector(".rich-link-dialog")?.remove()
+  const { from, to, existing } = linkRange(wg.state)
+  const input = el("input", {
+    class: "rich-link-input",
+    type: "text",
+    inputmode: "url",
+    autocomplete: "off",
+    spellcheck: "false",
+    placeholder: "https://",
+    "aria-label": "URL",
+    value: existing?.value ?? "",
+  })
+  const finish = href => {
+    close()
+    wg.dispatch({ selection: { anchor: from, head: to } })
+    if (href != null && from !== to) {
+      const changes = []
+      const seen = new Set()
+      wg.state.doc.iterate(from, to, node => {
+        const mark = Link.isInSet(node.marks)
+        if (!mark || seen.has(mark.value)) return
+        seen.add(mark.value)
+        changes.push({ from, to, remove: mark })
+      })
+      if (href) changes.push({ from, to, add: Link.of(href) })
+      if (changes.length) wg.dispatch({ changes, userEvent: "format.link" })
+    } else if (href != null) {
+      // nothing selected: the next typing wears the link
+      if (existing) Command.dispatch(wg, toggleMark, existing)
+      if (href) Command.dispatch(wg, toggleMark, Link.of(href))
+    }
+    wg.focus()
+  }
+  const apply = el("button", { class: "rich-button prominent", type: "submit", disabled: !input.value.trim() }, "Apply")
+  const card = el(
+    "form",
+    {
+      class: "rich-link-card",
+      // no browser validation: "example.com" and "me@x.org" are fine here
+      novalidate: true,
+      onsubmit: event => {
+        event.preventDefault()
+        const href = normalizeLink(input.value)
+        if (href) finish(href)
+      },
+    },
+    el("h3", { class: "rich-sheet-title" }, "Link"),
+    input,
+    el(
+      "div",
+      { class: "rich-sheet-buttons" },
+      el("button", { class: "rich-button", type: "button", disabled: !existing, onclick: () => finish("") }, "Remove"),
+      el("span", { class: "rich-sheet-spacer" }),
+      el("button", { class: "rich-button", type: "button", onclick: () => finish(null) }, "Cancel"),
+      apply,
+    ),
+  )
+  input.addEventListener("input", () => {
+    apply.disabled = !input.value.trim()
+  })
+  const sheet = el(
+    "div",
+    {
+      class: "rich-sheet rich-link-dialog",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": "Link",
+      onmousedown: event => {
+        if (event.target === sheet) {
+          event.preventDefault()
+          finish(null)
+        }
+      },
+    },
+    card,
+  )
+  const onKey = event => {
+    if (event.key !== "Escape") return
+    event.preventDefault()
+    event.stopPropagation()
+    finish(null)
+  }
+  function close() {
+    document.removeEventListener("keydown", onKey, true)
+    sheet.remove()
+  }
+  document.addEventListener("keydown", onKey, true)
+  context.element.append(sheet)
+  input.focus()
+  input.select()
+  return sheet
 }
 
 // ---------------------------------------------------------------------------
@@ -666,30 +790,126 @@ function selectedLogline(state) {
   return node && node.type === Logline ? { node, pos: from } : null
 }
 
+// Patchwork Doc…: lush's "New Patchwork Document" sheet. Pick a datatype and
+// a fresh document of it is made (`repo.create`, then the datatype's own
+// `init`) and embedded where the caret is. An existing document's URL can be
+// embedded from the same sheet.
+async function createPatchworkDoc(type) {
+  const repo = globalThis.repo
+  if (!repo) throw new Error("rich: no repo to create a document in")
+  const loaded = await loadPlugin("patchwork:datatype", type.id)
+  const datatype = loaded?.module ?? type.module ?? loaded
+  const handle = repo.create()
+  handle.change(doc => {
+    datatype?.init?.(doc, repo)
+    doc["@patchwork"] ??= {}
+    doc["@patchwork"].type ??= type.id
+  })
+  return handle.url
+}
+
+function embedFor(url, type) {
+  let tool = null
+  try {
+    tool = (getSupportedToolsForType(type) ?? []).find(tool => !tool.unlisted)?.id ?? null
+  } catch {}
+  return tool ? Embed.of(url).withMarks([EmbedTool.of(tool)]) : Embed.of(url)
+}
+
 function patchworkDocForm(bar) {
-  const { wg } = bar
-  const { result } = Dialog.show(wg, {
-    class: "rich-dialog",
-    focus: "input",
-    content: () =>
-      el(
-        "form",
-        {},
-        el("h3", {}, "Patchwork Doc"),
-        el("label", { class: "rich-form-field" }, el("span", {}, "URL"), el("input", { name: "url", placeholder: "automerge:…" })),
-        el("label", { class: "rich-form-field" }, el("span", {}, "Tool"), el("input", { name: "tool", placeholder: "optional" })),
-        el("button", { type: "submit" }, "Insert"),
-      ),
-  })
-  result.then(form => {
-    let url = form?.elements?.url?.value?.trim()
-    if (!url) return
-    const id = url.match(/#doc=([^&\s]+)/)?.[1]
-    if (id) url = `automerge:${id}`
-    const tool = form.elements.tool.value.trim()
-    const leaf = tool ? Embed.of(url).withMarks([EmbedTool.of(tool)]) : Embed.of(url)
+  const { wg, context } = bar
+  context.element.querySelector(".rich-doc-sheet")?.remove()
+  const at = wg.state.selection
+  const types = globalThis.repo
+    ? listPlugins("patchwork:datatype").filter(type => type?.id && !type.unlisted && type.id !== "file")
+    : []
+  const insert = leaf => {
+    close()
+    wg.dispatch({ selection: { anchor: at.anchor, head: at.head } })
     insertBlocks(wg, [leaf])
-  })
+  }
+  const status = el("p", { class: "rich-sheet-status", role: "status" })
+  const typeButton = type =>
+    el(
+      "button",
+      {
+        class: "rich-doc-type",
+        type: "button",
+        "data-type": type.id,
+        onclick: async () => {
+          status.textContent = `Making a new ${type.name ?? type.id}…`
+          try {
+            insert(embedFor(await createPatchworkDoc(type), type.id))
+          } catch (error) {
+            console.error(error)
+            status.textContent = `Could not make a ${type.name ?? type.id}.`
+          }
+        },
+      },
+      svg(ICONS.shippingbox, 14),
+      el("span", {}, type.name ?? type.id),
+    )
+  const url = el("input", { type: "text", name: "url", placeholder: "automerge:…", "aria-label": "Document URL", autocomplete: "off", spellcheck: "false" })
+  const card = el(
+    "form",
+    {
+      class: "rich-doc-card",
+      novalidate: true,
+      onsubmit: event => {
+        event.preventDefault()
+        let value = url.value.trim()
+        if (!value) return
+        const id = value.match(/#doc=([^&\s]+)/)?.[1] ?? value.match(/automerge:([A-Za-z0-9]+)/)?.[1]
+        if (id) value = `automerge:${id}`
+        insert(Embed.of(value))
+      },
+    },
+    el("h3", { class: "rich-sheet-title" }, "New Patchwork Document"),
+    types.length
+      ? el("div", { class: "rich-doc-types", role: "list" }, ...types.map(typeButton))
+      : el("p", { class: "rich-sheet-note" }, "There is no repo here to make a document in. Embed one by its URL."),
+    el("label", { class: "rich-sheet-label" }, "Or embed a document", url),
+    status,
+    el(
+      "div",
+      { class: "rich-sheet-buttons" },
+      el("span", { class: "rich-sheet-spacer" }),
+      el("button", { class: "rich-button", type: "button", onclick: () => { close(); wg.focus() } }, "Cancel"),
+      el("button", { class: "rich-button prominent", type: "submit" }, "Embed"),
+    ),
+  )
+  const sheet = el(
+    "div",
+    {
+      class: "rich-sheet rich-doc-sheet",
+      role: "dialog",
+      "aria-modal": "true",
+      "aria-label": "New Patchwork Document",
+      onmousedown: event => {
+        if (event.target === sheet) {
+          event.preventDefault()
+          close()
+          wg.focus()
+        }
+      },
+    },
+    card,
+  )
+  const onKey = event => {
+    if (event.key !== "Escape") return
+    event.preventDefault()
+    event.stopPropagation()
+    close()
+    wg.focus()
+  }
+  function close() {
+    document.removeEventListener("keydown", onKey, true)
+    sheet.remove()
+  }
+  document.addEventListener("keydown", onKey, true)
+  context.element.append(sheet)
+  ;(card.querySelector(".rich-doc-type") ?? url).focus()
+  return sheet
 }
 
 export function insertTable(wg, rows = 3, columns = 3) {
@@ -737,18 +957,18 @@ function attachMenu(bar) {
   const canRecord = Boolean(navigator.mediaDevices?.getUserMedia) && typeof MediaRecorder !== "undefined"
   popover.body.replaceChildren(
     menuItem("Choose Photo…", "photo", act(() => attachFiles(wg, "image/*"))),
-    menuItem("Record Audio", "mic", act(() => recordAudio(bar)), { disabled: !canRecord }),
-    menuItem(bar.transcribing ? "Stop Transcription" : "Live Transcription", "waveform", act(() => liveTranscription(bar)), {
+    menuItem("Record Audio", "waveform", act(() => recordAudio(bar)), { disabled: !canRecord }),
+    menuItem(bar.transcribing ? "Stop Transcription" : "Live Transcription", "micFill", act(() => liveTranscription(bar)), {
       disabled: !SpeechRecognition(),
     }),
-    menuItem("Attach File…", "paperclip", act(() => attachFiles(wg, ""))),
+    menuItem("Attach File…", "file", act(() => attachFiles(wg, ""))),
     divider(),
     menuItem("Logline", "clock", act(async () => insertBlocks(wg, [await loglineNow()]))),
     menuItem("Logline…", "clockEdit", act(() => loglineForm(bar))),
     menuItem("Table", "table", act(() => insertTable(wg))),
     menuItem("Columns", "columns", act(() => insertColumns(wg))),
     menuItem("HTML Block", "html", act(() => insertHtmlBlock(wg))),
-    menuItem("Patchwork Doc…", "doc", act(() => patchworkDocForm(bar))),
+    menuItem("Patchwork Doc…", "shippingbox", act(() => patchworkDocForm(bar))),
   )
   return popover
 }
@@ -760,16 +980,32 @@ function attachMenu(bar) {
 function noteMenu(bar) {
   const { wg, context } = bar
   const popover = new Popover(bar, bar.more, "rich-note-menu")
-  const act = run => () => {
+  const act = (run, focus = true) => () => {
     popover.close()
     run()
-    wg.focus()
+    if (focus) wg.focus()
   }
+  const hidden = context.element.classList.contains("rich-hide-checked")
+  const checked = hasChecked(wg.state.doc)
   const items = [
-    menuItem("Duplicate", "duplicate", act(() => duplicate(bar)), { disabled: !globalThis.repo || !context.handle }),
+    // A duplicate is a new document, so it needs a repo to make one in; a
+    // host without one (the site editor) duplicates its own way.
+    globalThis.repo && context.handle ? menuItem("Duplicate", "duplicate", act(() => duplicate(bar))) : null,
     context.handle?.url
       ? menuItem("Copy Link", "copyLink", act(() => navigator.clipboard?.writeText(context.handle.url)))
       : null,
+    divider(),
+    menuItem("Find…", "find", act(() => openFind(wg, false), false), { shortcut: "⌘F" }),
+    menuItem("Find and Replace…", "replace", act(() => openFind(wg, true), false), { shortcut: "⌥⌘F" }),
+    divider(),
+    menuItem("Export as Markdown…", "export", act(() => exportAs(bar, "markdown"))),
+    menuItem("Export as HTML…", "export", act(() => exportAs(bar, "html"))),
+    divider(),
+    menuItem("Move Checked to Bottom", "checkBottom", act(() => moveCheckedToBottom(wg)), { disabled: !checked }),
+    menuItem(hidden ? "Show Checked Items" : "Hide Checked Items", hidden ? "eye" : "eyeSlash", act(() =>
+      context.element.classList.toggle("rich-hide-checked", !hidden),
+    )),
+    menuItem("Delete Checked Items", "trash", act(() => deleteCheckedItems(wg)), { disabled: !checked, danger: true }),
   ]
   if (inTable(wg.state) || wg.state.selection instanceof CellSelection) {
     items.push(divider())
@@ -789,8 +1025,19 @@ function noteMenu(bar) {
       ),
     ),
   )
-  popover.body.replaceChildren(...items.filter(Boolean))
+  // no divider first, last or twice in a row
+  const shown = items.filter(Boolean).filter((item, i, all) => {
+    if (!item.classList.contains("rich-popover-divider")) return true
+    const before = all.slice(0, i).reverse().find(Boolean)
+    return before && !before.classList.contains("rich-popover-divider") && i < all.length - 1
+  })
+  popover.body.replaceChildren(...shown)
   return popover
+}
+
+async function exportAs(bar, format) {
+  const { exportNote } = await import("./export.js")
+  if (bar.context.handle) exportNote(bar.context.handle, format)
 }
 
 async function duplicate(bar) {
@@ -808,26 +1055,194 @@ async function duplicate(bar) {
   } catch {}
 }
 
-function countWords(doc) {
-  const text = doc.textContent?.() ?? ""
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0
-  return { words, characters: text.length }
+// What the Info tab counts, from the spans every peer has (lush's
+// InspectorViews.swift): words and characters, then the blocks by kind.
+function noteStats(spans) {
+  const stats = {
+    words: 0,
+    characters: 0,
+    paragraphs: 0,
+    headings: 0,
+    listItems: 0,
+    todos: { open: 0, checked: 0, canceled: 0, pending: 0 },
+    codeBlocks: 0,
+    tables: 0,
+    columns: 0,
+    links: 0,
+    attachments: 0,
+  }
+  const str = value => (value == null ? "" : typeof value === "string" ? value : String(value.val ?? value))
+  let text = ""
+  let inCode = false
+  let lastLink = null
+  for (const span of spans) {
+    if (span.type === "block") {
+      const block = span.value
+      const type = str(block.type)
+      const parents = (block.parents ?? []).map(str)
+      text += "\n"
+      lastLink = null
+      if (type !== "code-block") inCode = false
+      if (type === "paragraph" && !parents.includes("blockquote")) stats.paragraphs++
+      else if (type === "heading") stats.headings++
+      else if (type === "unordered-list-item" || type === "ordered-list-item") stats.listItems++
+      else if (type === "todo-list-item") {
+        stats.listItems++
+        const state = block.attrs?.checked === true ? "checked" : str(block.attrs?.state)
+        stats.todos[stats.todos[state] != null ? state : "open"]++
+      } else if (type === "code-block") {
+        if (!inCode) stats.codeBlocks++
+        inCode = true
+      } else if (type === "table") stats.tables++
+      else if (type === "columns") stats.columns++
+      else if (type === "embed" || type === "image") stats.attachments++
+    } else if (span.type === "text") {
+      text += span.value
+      const link = span.marks?.link ? str(span.marks.link) : null
+      if (link && link !== lastLink) stats.links++
+      lastLink = link
+    }
+  }
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  stats.words = words.length
+  stats.characters = text.replace(/\n/g, "").length
+  return stats
+}
+
+// The headings, for the Outline tab: level, text and where they start.
+function outlineOf(doc) {
+  const headings = []
+  doc.iterate((node, pos) => {
+    if (!node.isPlot) return
+    if (node.type?.name === "Heading") {
+      headings.push({ level: Math.max(1, Number(node.tag.param) || 1), text: node.textContent(), pos })
+      return false
+    }
+  })
+  return headings
 }
 
 function infoPopover(bar) {
   const { wg, context } = bar
   const popover = new Popover(bar, bar.info, "rich-info-popover")
-  const { words, characters } = countWords(wg.state.doc)
-  const doc = context.handle?.doc?.()
-  const title = typeof doc?.title === "string" ? doc.title : (doc?.title?.val ?? "")
+  let tab = bar.infoTab ?? "info"
+  const handle = context.handle
+  const doc = handle?.doc?.()
+  let spans = []
+  try {
+    spans = doc ? am.spans(doc, ["content"]) : []
+  } catch {}
   const row = (label, value) =>
-    el("div", { class: "rich-info-row" }, el("span", { class: "rich-info-label" }, label), el("span", { class: "rich-info-value" }, value))
-  popover.body.replaceChildren(
-    el("div", { class: "rich-info-title" }, title || "Untitled"),
-    row("Words", words.toLocaleString()),
-    row("Characters", characters.toLocaleString()),
-    context.handle?.url ? row("Document", el("code", {}, context.handle.url)) : null,
-  )
+    value == null
+      ? null
+      : el("div", { class: "rich-info-row" }, el("span", { class: "rich-info-label" }, label), el("span", { class: "rich-info-value" }, value))
+  const section = (title, ...rows) => {
+    const shown = rows.filter(Boolean)
+    return shown.length ? el("section", { class: "rich-info-section" }, el("h4", {}, title), ...shown) : null
+  }
+  const number = value => Number(value).toLocaleString()
+
+  function info() {
+    const stats = noteStats(spans)
+    const title = typeof doc?.title === "string" ? doc.title : (doc?.title?.val ?? "")
+    let history = null
+    try {
+      if (doc) {
+        const changes = am.getAllChanges(doc)
+        // decoding every change is only worth it for a note of ordinary size
+        const actors = changes.length <= 5000 ? new Set(changes.map(change => am.decodeChange(change).actor)) : null
+        history = { changes: changes.length, contributors: actors?.size ?? null }
+      }
+    } catch {}
+    const todos = stats.todos
+    const todoCount = todos.open + todos.checked + todos.canceled + todos.pending
+    return [
+      section(
+        "Document",
+        row("Name", title || "Untitled"),
+        row("Kind", "Note"),
+        handle?.url ? row("Document", el("code", {}, handle.url)) : null,
+      ),
+      section(
+        "Content",
+        row("Words", number(stats.words)),
+        row("Characters", number(stats.characters)),
+        row("Paragraphs", number(stats.paragraphs)),
+        stats.headings ? row("Headings", number(stats.headings)) : null,
+        stats.listItems ? row("List items", number(stats.listItems)) : null,
+        todoCount
+          ? row(
+              "To-dos",
+              [
+                `${todos.checked} done`,
+                `${todos.open} open`,
+                todos.pending ? `${todos.pending} pending` : null,
+                todos.canceled ? `${todos.canceled} canceled` : null,
+              ]
+                .filter(Boolean)
+                .join(", "),
+            )
+          : null,
+        stats.codeBlocks ? row("Code blocks", number(stats.codeBlocks)) : null,
+        stats.tables ? row("Tables", number(stats.tables)) : null,
+        stats.columns ? row("Column layouts", number(stats.columns)) : null,
+        stats.links ? row("Links", number(stats.links)) : null,
+        stats.attachments ? row("Attachments", number(stats.attachments)) : null,
+      ),
+      history
+        ? section(
+            "Automerge",
+            row("Changes", number(history.changes)),
+            history.contributors == null ? null : row("Contributors", number(history.contributors)),
+          )
+        : null,
+    ]
+  }
+
+  function outline() {
+    const headings = outlineOf(wg.state.doc)
+    if (!headings.length) return [el("p", { class: "rich-outline-empty" }, "No headings")]
+    return [
+      el(
+        "nav",
+        { class: "rich-outline", "aria-label": "Outline" },
+        ...headings.map(heading =>
+          el(
+            "button",
+            {
+              class: `rich-outline-item level-${Math.min(heading.level, 3)}`,
+              type: "button",
+              style: `padding-left: ${6 + (Math.min(heading.level, 3) - 1) * 14}px`,
+              onmousedown: event => event.preventDefault(),
+              onclick: () => {
+                popover.close()
+                wg.dispatch({ selection: { anchor: heading.pos + 1 }, scrollIntoView: true })
+                wg.focus()
+              },
+            },
+            heading.text || "Untitled",
+          ),
+        ),
+      ),
+    ]
+  }
+
+  function render() {
+    const tabButton = (id, label) => {
+      const node = makeButton(`rich-tab${tab === id ? " active" : ""}`, label, label, () => {
+        tab = bar.infoTab = id
+        render()
+      })
+      node.setAttribute("role", "tab")
+      node.setAttribute("aria-selected", String(tab === id))
+      return node
+    }
+    popover.body.replaceChildren(
+      el("div", { class: "rich-tabs", role: "tablist" }, tabButton("info", "Info"), tabButton("outline", "Outline")),
+      el("div", { class: "rich-tab-panel", role: "tabpanel" }, ...(tab === "info" ? info() : outline())),
+    )
+  }
+  render()
   return popover
 }
 
@@ -843,12 +1258,12 @@ class TopBar {
     this.popover = null
     this.transcribing = null
 
-    this.aa = button("rich-bar-button rich-aa", "Format", el("span", { class: "rich-aa-glyph" }, "Aa"), () =>
+    this.aa = makeButton("rich-bar-button rich-aa", "Format", el("span", { class: "rich-aa-glyph" }, "Aa"), () =>
       this.toggle(formatPopover),
     )
-    this.clip = button("rich-bar-button rich-clip", "Attach", svg(ICONS.paperclip, 16), () => this.toggle(attachMenu))
-    this.more = button("rich-bar-button rich-more", "More", svg(ICONS.more, 16), () => this.toggle(noteMenu))
-    this.info = button("rich-bar-button rich-info", "Info", svg(ICONS.info, 17), () => this.toggle(infoPopover))
+    this.clip = makeButton("rich-bar-button rich-clip", "Attach", svg(ICONS.paperclip, 16), () => this.toggle(attachMenu))
+    this.more = makeButton("rich-bar-button rich-more", "More", svg(ICONS.more, 16), () => this.toggle(noteMenu))
+    this.info = makeButton("rich-bar-button rich-info", "Info", svg(ICONS.info, 17), () => this.toggle(infoPopover))
 
     this.layer = el(
       "div",
@@ -857,6 +1272,11 @@ class TopBar {
       el("div", { class: "rich-bar-pill rich-bar-centre" }, this.aa, this.clip),
       el("div", { class: "rich-topbar-side rich-topbar-right" }, el("div", { class: "rich-bar-pill" }, this.more, this.info)),
     )
+  }
+
+  // Phone width: lush's iOS layout, where the format popover is an island.
+  narrow() {
+    return this.context.element.getBoundingClientRect().width < 560
   }
 
   toggle(make) {
@@ -907,7 +1327,9 @@ class TopBar {
     ]
       .filter(Boolean)
       .join(" ")
-    this.aa.classList.toggle("marked", marks.length > 0 || Boolean(font))
+    // lush tints the Aa for any mark it knows, the baselines included
+    const baseline = baselineAt(state, Superscript) || baselineAt(state, Subscript)
+    this.aa.classList.toggle("marked", marks.length > 0 || Boolean(font) || baseline)
   }
 }
 
@@ -918,6 +1340,15 @@ export function topBar(context) {
 }
 
 export { loglineForm, selectedLogline }
+
+// Cmd-K: the link editor, from the key binding.
+export function openLinkEditor(wg) {
+  const bar = barOf.get(wg)
+  if (!bar) return false
+  bar.popover?.close()
+  linkDialog(bar)
+  return true
+}
 
 // Cmd-Opt-L: the logline form, from the key binding (which has no bar).
 export function openLoglineForm(wg) {

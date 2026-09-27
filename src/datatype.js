@@ -162,8 +162,11 @@ export const RichDatatype = {
     setText(doc, ["title"], title)
   },
 
+  // Both titles, as every write sets both: the host lists `@patchwork.title`.
   markCopy(doc) {
-    setText(doc, ["title"], "Copy of " + this.getTitle(doc))
+    const title = "Copy of " + this.getTitle(doc)
+    setText(doc, ["title"], title)
+    setText(doc, ["@patchwork", "title"], title)
   },
 
   // A duplicate is a new note, not a fork: see copyNote.

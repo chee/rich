@@ -15,6 +15,8 @@ import { blockTypes } from "./block-types.js"
 import { richKeys } from "./keys.js"
 import { htmlEditing } from "./html-block.js"
 import { todoLists } from "./todo-list.js"
+import { lushTrigger } from "./triggers.js"
+import { findInNote } from "./find.js"
 import { tableEditing } from "./tables.js"
 import { listIndent } from "./lists.js"
 import { getDndPayload, hasDocumentDrag } from "./dnd.js"
@@ -130,9 +132,10 @@ const opening = () =>
 export const featurePlugins = [
   feature("slash", "Slash menu", "core", context => slashMenu(context)),
   feature("topbar", "Top bar", "core", context => topBar(context)),
+  feature("find", "Find in note", "core", context => findInNote(context)),
   feature("tables", "Table editing", "core", () => tableEditing()),
   feature("lists", "List indenting", "core", () => listIndent()),
-  feature("todo", "To-do checkboxes", "core", () => todoLists()),
+  feature("todo", "To-do checkboxes", "core", () => todoLists(lushTrigger)),
   feature("images", "Image paste & drop", "core", () => imageDropAndPaste()),
   feature("spans-clipboard", "Automerge clipboard", "core", context =>
     spansClipboard(context.adapter),

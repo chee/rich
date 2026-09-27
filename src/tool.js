@@ -35,6 +35,9 @@ import { draftDiff } from "./drafts.js"
 import { docSelector, expandSelector } from "./plugin-catalog.js"
 import { syncTitle } from "./datatype.js"
 import "./cards.js"
+import { lushTrigger, restyleTriggers } from "./triggers.js"
+import { registerFonts } from "./fonts.js"
+import { dropExcludedMarks } from "./excluded-marks.js"
 import "./rich.css"
 
 // Lush's markdown triggers: `-` or `*` for a bullet, `1.` for a number, `#`
@@ -42,16 +45,59 @@ import "./rich.css"
 // brackets are in todo-list.js). The schema bundles' own versions of these
 // only fire on empty lines; these fire on a line with content after the
 // cursor too.
+// Inside a list or a quote they replace the block's style, as lush's do (see
+// triggers.js).
 const convertOnPrefix = [
-  InputRule.textblockType(/^(#{1,3}) $/, match => Heading.of(match[1].text.length)),
-  InputRule.wrapping(/^> $/, Blockquote),
-  InputRule.wrapping(/^ ?[-*] $/, BulletList),
-  InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1].text)),
+  lushTrigger(InputRule.textblockType(/^(#{1,3}) $/, match => Heading.of(match[1].text.length)), match => ({
+    id: `h${match[1].text.length}`,
+  })),
+  lushTrigger(InputRule.wrapping(/^> $/, Blockquote), () => ({ id: "quote" })),
+  lushTrigger(InputRule.wrapping(/^ ?[-*] $/, BulletList), () => ({ id: "bullet" })),
+  lushTrigger(InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1].text)), () => ({ id: "ordered" })),
 ]
+
+// Lush's colours come in a light and a dark set (rich.css picks with
+// light-dark()). With no theme of the host's, the page follows the system. A
+// host that paints its own fill (Patchwork's and the site editor's
+// --editor-fill) decides instead: a dark fill gets the dark set, so the cards,
+// highlights and marks stay readable on it.
+function followHostScheme(element) {
+  const canvas = document.createElement("canvas")
+  canvas.width = canvas.height = 1
+  const paint = canvas.getContext("2d", { willReadFrequently: true })
+  const sync = () => {
+    const host = getComputedStyle(element).getPropertyValue("--editor-fill").trim()
+    if (!host || !paint) {
+      element.style.removeProperty("color-scheme")
+      return
+    }
+    paint.clearRect(0, 0, 1, 1)
+    paint.fillStyle = "#fff"
+    paint.fillStyle = host
+    paint.fillRect(0, 0, 1, 1)
+    const [r, g, b] = paint.getImageData(0, 0, 1, 1).data
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+    element.style.colorScheme = luminance < 0.5 ? "dark" : "light"
+  }
+  sync()
+  const media = matchMedia("(prefers-color-scheme: dark)")
+  media.addEventListener?.("change", sync)
+  // Hosts switch themes with a class or attribute on the root or the body.
+  const observer = new MutationObserver(sync)
+  for (const node of [document.documentElement, document.body, element.parentElement].filter(Boolean)) {
+    observer.observe(node, { attributes: true, attributeFilter: ["class", "style", "theme", "data-theme"] })
+  }
+  return () => {
+    media.removeEventListener?.("change", sync)
+    observer.disconnect()
+  }
+}
 
 // The render contract: (handle, element) => cleanup.
 export default function RichTool(handle, element) {
   element.classList.add("rich-tool")
+  registerFonts()
+  const stopScheme = followHostScheme(element)
 
   const page = document.createElement("div")
   page.className = "rich-page"
@@ -128,7 +174,10 @@ export default function RichTool(handle, element) {
       superscript(),
       subscript(),
 
-      convertOnPrefix.map(rule => rule.extension),
+      // ahead of the schema bundles' own rules, which nest in a list
+      GardState.prec.highest(convertOnPrefix.map(rule => rule.extension)),
+      restyleTriggers,
+      dropExcludedMarks,
 
       // Tables, as lush has them: cells hold blocks, there is a header row
       // or none, and no cell spans more than one row or column.
@@ -147,6 +196,19 @@ export default function RichTool(handle, element) {
 
       Wordgard.scrolling("100%"),
 
+      // A key command's change reaches the DOM on the next animation frame.
+      // Typing that lands before then is read against the old DOM: after
+      // select-all and Backspace, the browser still has the whole old note
+      // selected, and the first letter went into a paragraph of its own. So
+      // bring the DOM up to date as soon as a key has changed the note.
+      Wordgard.domEventObserver("keydown", (event, wg) => {
+        if (event.isComposing || event.keyCode === 229) return
+        const before = wg.state
+        queueMicrotask(() => {
+          if (wg.state !== before && !wg.inputState?.composing) wg.flush()
+        })
+      }),
+
       featureConfig.of(extensions()),
     ],
   })
@@ -155,6 +217,7 @@ export default function RichTool(handle, element) {
   page.wordgard = editor
 
   return () => {
+    stopScheme()
     handle.off("change", onDocChange)
     blocks.dispose()
     commands.dispose()

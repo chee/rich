@@ -15,6 +15,10 @@ import { copyNote, titleFromSpans } from "../src/datatype.js"
 const repo = new Repo({})
 window.repo = repo
 
+// The datatypes a host would list, so Patchwork Doc… has something to make.
+import { plugins as richPluginDescriptions } from "../src/index.js"
+for (const plugin of richPluginDescriptions) getRegistry(plugin.type).register(plugin)
+
 // `?fixture=name` opens dev/fixtures/name.automerge — real documents saved out
 // of other editors, to check they still load.
 const fixture = new URLSearchParams(location.search).get("fixture")

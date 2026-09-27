@@ -25,14 +25,31 @@ and it looks and behaves like lush's editor.
   block styles, each drawn in its own style with a tick on the current one —
   Title, Heading, Subheading, Body, Code; Bulleted, Numbered and To-do lists;
   Quote — and an indent/outdent pill. In a code block, a language picker.
-  Picking the style a block already has puts it back to Body.
+  Picking the style a block already has puts it back to Body. The link button
+  (and Cmd-K) opens lush's Link sheet: `example.com` becomes
+  `https://example.com`, `me@x.org` becomes `mailto:me@x.org`. At phone width
+  the popover is lush's bottom **Format** island instead.
 - **The paperclip**: Choose Photo…, Record Audio, Live Transcription, Attach
   File…, Logline, Logline…, Table, Columns, HTML Block, Patchwork Doc….
-- **•••**: Duplicate (a new note with no shared history), Copy Link, the table
-  verbs when the caret is in a table, Plugins….
+- **•••**: Duplicate (a new note with no shared history; only where there is
+  a repo to make it in), Copy Link, Find… and Find and Replace… (Cmd-F,
+  Cmd-Opt-F, Cmd-G), Export as Markdown… and as HTML…, Move Checked to Bottom,
+  Hide Checked Items, Delete Checked Items, the table verbs when the caret is
+  in a table, Plugins….
+- **Info** (the (i) button): the note's counts (words, characters, blocks by
+  kind, to-dos by state, links, attachments, automerge changes) and an
+  **Outline** of its headings to jump to.
+- **The look is lush's**: Jost at 16px with Jost's own line height,
+  Merriweather for the serif mark, Caroni for the hand, Fantasque Sans Mono
+  for code (src/fonts, loaded by fonts.js); headings 10pt before and 6pt
+  after; drawn bullets and lush's four to-do boxes (right-click one for its
+  states); the cream quote card with its pink bar; the pale-blue code card;
+  pink links. It has a dark scheme of its own, and a host's `--editor-fill`
+  decides which scheme applies.
 - **Markdown triggers**, as in lush: `-`/`*` bullet, `1.` numbered, `#`–`###`
   Title/Heading/Subheading, `>` quote, `[]`/`[ ]` to-do, `[x]` done, `[-]`
-  canceled, `[/]` pending.
+  canceled, `[/]` pending. Like lush's, they replace the line's style, so `> `
+  on a to-do line makes a quote rather than a quote inside the to-do.
 - **Keys**, as in lush: Cmd-Shift-T/H/J/B/M for Title/Heading/Subheading/
   Body/Code, Cmd-Shift-8/7/0/9 for bullets/numbers/to-dos/quote, Cmd-U,
   Cmd-/ strikethrough, Cmd-K link, Cmd-Ctrl-+/- super/subscript, Cmd-L
