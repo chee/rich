@@ -7,7 +7,7 @@ import { docFromSpans } from "./traversal.js"
 import { automergeSyncPlugin } from "./plugin.js"
 import { DocHandle } from "./DocHandle.js"
 
-export { SchemaAdapter, UnknownBlock } from "./schema.js"
+export { SchemaAdapter, UnknownBlock, UnknownEmbed, BlockExtras, ForeignMarks, encodeAttrs, decodeAttrs } from "./schema.js"
 export type {
   MappedSchemaSpec,
   BlockMappingSpec,
@@ -18,7 +18,7 @@ export type {
 } from "./schema.js"
 export { amMarksFromMarks, marksFromAmMarks } from "./schema.js"
 export { basicSchemaAdapter, basicSchemaSpec } from "./basicSchema.js"
-export { docFromSpans, spansFromDoc, spansFromSlice } from "./traversal.js"
+export { docFromSpans, spansFromDoc, spansFromSlice, LINE_SEPARATOR } from "./traversal.js"
 export { indexUnits, indexFromPos, posFromIndex } from "./traversal.js"
 export type { IndexUnit } from "./traversal.js"
 export { diffDocs, diffAtoms, atomsOf, atomsText, contentRuns } from "./diff.js"

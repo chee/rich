@@ -24,11 +24,51 @@ export const Checked = Mark.define("Checked", {
   shape: { attribute: "data-checked", value: "true" },
 })
 
+// Lush's other two states: an item can be canceled (struck through) or
+// pending (half-done), written as `state: "canceled" | "pending"`. Open is
+// neither attr, done is `checked: true`.
+export const TODO_STATES = ["canceled", "pending"]
+
+export const TodoState = Mark.Type.define("TodoState", {
+  target: ListItem,
+  validate: "string",
+  keepOnSplit: false,
+  shape: { attribute: "data-state", value: 0 },
+})
+
 export const isChecked = tag => Checked.isInSet(tag.marks) != null
 
-export const checkedParsers = {
-  fromAutomerge: block => (block.attrs.checked === true ? Checked.addToSet(Mark.none) : Mark.none),
-  fromWordgard: node => (isChecked(node.tag) ? { checked: true } : {}),
+// "open", "checked", "canceled" or "pending".
+export const todoStateOf = tag =>
+  isChecked(tag) ? "checked" : (TodoState.isInSet(tag.marks)?.value ?? "open")
+
+const stateName = value => {
+  const name = value == null ? null : typeof value === "string" ? value : value.val
+  return TODO_STATES.includes(name) ? name : null
+}
+
+export const todoParsers = {
+  fromAutomerge: block => {
+    if (block.attrs.checked === true) return Checked.addToSet(Mark.none)
+    const state = stateName(block.attrs.state)
+    return state ? TodoState.of(state).addToSet(Mark.none) : Mark.none
+  },
+  fromWordgard: node => {
+    if (isChecked(node.tag)) return { checked: true }
+    const state = TodoState.isInSet(node.tag.marks)
+    return state ? { state: state.value } : {}
+  },
+}
+
+// The changes that put the item at `pos` into `state`.
+export function todoStateChanges(tag, pos, state) {
+  const changes = []
+  if (isChecked(tag)) changes.push({ from: pos, remove: Checked })
+  const current = TodoState.isInSet(tag.marks)
+  if (current) changes.push({ from: pos, remove: current })
+  if (state === "checked") changes.push({ from: pos, add: Checked })
+  else if (TODO_STATES.includes(state)) changes.push({ from: pos, add: TodoState.of(state) })
+  return changes
 }
 
 const todoItemAt = (wg, element) => {
@@ -46,9 +86,23 @@ const onTheBox = (event, element) => {
   return event.clientX < box.left + padding
 }
 
-// `[] ` or `[x] ` at the start of a line starts a to-do list, the way `- `
-// starts a bullet one.
-const createOnBrackets = InputRule.wrapping(/^ ?\[[ xX]?\] $/, TodoList)
+// `[] `, `[ ] `, `[x] `, `[-] ` or `[/] ` at the start of a line starts a
+// to-do list in that state, the way `- ` starts a bullet one — lush's
+// triggers.
+const wrapTodo = InputRule.wrapping(/^ ?\[([ xX\-/]?)\] $/, TodoList)
+const BRACKET_STATES = { x: "checked", X: "checked", "-": "canceled", "/": "pending" }
+
+const createOnBrackets = InputRule.define({
+  expr: /^ ?\[([ xX\-/]?)\] $/,
+  apply: (wg, match) => {
+    const state = BRACKET_STATES[match[1]?.text ?? ""]
+    if (!wrapTodo.apply(wg, match)) return false
+    if (!state) return true
+    const item = wg.state.sel.head.matchingParent(plot => plot.type === ListItem.type)
+    if (item) wg.dispatch({ changes: todoStateChanges(item.node.tag, item.before, state) })
+    return true
+  },
+})
 
 export function todoLists() {
   return [createOnBrackets.extension, todoChecking()]
@@ -59,9 +113,10 @@ function todoChecking() {
     const found = todoItemAt(wg, event.target)
     if (!found || !onTheBox(event, found.element)) return false
     event.preventDefault()
-    const done = isChecked(found.node.tag)
+    // The box ticks an open item and opens any other one.
+    const state = todoStateOf(found.node.tag) === "open" ? "checked" : "open"
     wg.dispatch({
-      changes: { from: found.pos, [done ? "remove" : "add"]: Checked },
+      changes: todoStateChanges(found.node.tag, found.pos, state),
       userEvent: "todo.check",
     })
     return true

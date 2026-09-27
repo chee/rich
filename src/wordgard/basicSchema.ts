@@ -110,7 +110,9 @@ export const basicSchemaSpec: MappedSchemaSpec = {
           }
           return ""
         },
-        fromWordgard: value => JSON.stringify({ href: value, title: "" }),
+        // The plain URL, the way the Swift app writes (and reads) it.
+        // JSON `{href, title}` from older writers is still read above.
+        fromWordgard: value => String(value),
       },
     },
   ],

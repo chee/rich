@@ -7,15 +7,17 @@
 // The block's parameter is JSON, because the block has several attrs and a
 // leaf carries one value. The mapping to and from `context` attrs is in
 // adapter.js; the shape of the facts is here.
-import { Leaf } from "wordgard/doc"
+import { Leaf, Node } from "wordgard/doc"
 import { el, svg } from "./dom.js"
 
 const NAME = "rich-logline"
 
-export const LOGLINE_FACTS = ["ts", "created", "location", "lat", "lon", "weather", "now_playing"]
+// The facts lush writes. Providers add more (`nowPlaying`, say); those are
+// kept too, and shown as extra rows in the logline form.
+export const LOGLINE_FACTS = ["ts", "created", "tz", "location", "lat", "lon", "weather", "nowPlaying", "pending"]
 
 export const Logline = Leaf.Type.define("Logline", {
-  inline: true,
+  group: Node.Group.Content,
   validate: "string",
   selectable: true,
   shape: {
@@ -27,13 +29,34 @@ export const Logline = Leaf.Type.define("Logline", {
 // A leaf for the facts we can gather here: the time, and the place when the
 // browser will give it without asking.
 export async function loglineNow(kind = "ts") {
-  const facts = { [kind]: new Date().toISOString() }
+  const facts = { [kind]: stamp(), tz: timeZone() }
   const place = await coordsIfAllowed()
   if (place) {
     facts.lat = place.latitude
     facts.lon = place.longitude
   }
   return Logline.of(JSON.stringify(facts))
+}
+
+// `YYYY-MM-DDTHH:MM:SS±hh:mm`: what lush's ISO8601DateFormatter reads —
+// it takes no fractional seconds, so `toISOString()` would show no time.
+export function stamp(date = new Date()) {
+  const pad = n => String(Math.abs(Math.trunc(n))).padStart(2, "0")
+  const offset = -date.getTimezoneOffset()
+  const sign = offset >= 0 ? "+" : "-"
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}` +
+    `${sign}${pad(offset / 60)}:${pad(offset % 60)}`
+  )
+}
+
+export const timeZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    return undefined
+  }
 }
 
 export async function insertLogline(wg) {
@@ -150,7 +173,9 @@ class RichLogline extends HTMLElement {
     if (facts.weather) row.append(fact("weather", facts.weather))
     const place = facts.location ?? (facts.lat != null ? `${facts.lat.toFixed?.(3) ?? facts.lat}, ${facts.lon.toFixed?.(3) ?? facts.lon}` : null)
     if (place) row.append(fact("location", place, mapUrl(facts)))
-    if (facts.now_playing) row.append(fact("music", facts.now_playing))
+    const playing = facts.nowPlaying ?? facts.now_playing
+    if (playing) row.append(fact("music", playing))
+    if (facts.pending) row.append(el("span", { class: "rich-logline-fact rich-logline-pending" }, "…"))
     this.shadowRoot.querySelector(".rich-logline")?.remove()
     this.shadowRoot.append(row)
   }

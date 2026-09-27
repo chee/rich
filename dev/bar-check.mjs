@@ -2,7 +2,7 @@
 // selection is against. Run `pnpm dev:serve` first.
 import { chromium } from "playwright"
 
-const browser = await chromium.launch({ channel: "chromium" })
+const browser = await chromium.launch({ channel: "chromium", executablePath: process.env.CHROME_PATH })
 const page = await browser.newPage({ viewport: { width: 620, height: 420 } })
 const problems = []
 const errors = []

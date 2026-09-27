@@ -5,14 +5,14 @@
 //
 // The pencil asks the editor to edit it (see htmlEditing in features.js): the
 // element draws, the document is the editor's business.
-import { Leaf } from "wordgard/doc"
+import { Leaf, Node } from "wordgard/doc"
 import { Dialog, Wordgard } from "wordgard/editor"
 import { el } from "./dom.js"
 
 const NAME = "rich-html"
 
 export const HtmlBlock = Leaf.Type.define("HtmlBlock", {
-  inline: true,
+  group: Node.Group.Content,
   validate: "string",
   selectable: true,
   shape: {

@@ -21,6 +21,9 @@ export interface SyncPluginConfig {
   adapter: SchemaAdapter
   handle: DocHandle<unknown>
   path: am.Prop[]
+  /// Called inside every local write's change, after the content is
+  /// written — for fields derived from it, like the title.
+  onWrite?: (doc: am.Doc<unknown>) => void
 }
 
 /// Create the editor extension that keeps a wordgard editor in sync
@@ -34,6 +37,7 @@ export function automergeSyncPlugin({
   adapter,
   handle,
   path,
+  onWrite,
 }: SyncPluginConfig): GardState.Extension {
   const spansConfig = adapter.updateSpansConfig()
   const touchesPath = (patch: am.Patch): boolean => {
@@ -114,14 +118,16 @@ export function automergeSyncPlugin({
         this.isProcessing = true
         try {
           handle.change(doc => {
-            if (this.writeText(doc, pending)) return
-            am.updateSpans(
-              doc,
-              // slice() because am mutates the path array in place
-              path.slice(),
-              spansFromDoc(adapter, this.wg.state.doc),
-              spansConfig,
-            )
+            if (!this.writeText(doc, pending)) {
+              am.updateSpans(
+                doc,
+                // slice() because am mutates the path array in place
+                path.slice(),
+                spansFromDoc(adapter, this.wg.state.doc),
+                spansConfig,
+              )
+            }
+            onWrite?.(doc)
           })
           this.reconciledHeads = am.getHeads(handle.doc())
         } finally {
@@ -178,13 +184,17 @@ export function automergeSyncPlugin({
               for (let i = from; i < to; i++) {
                 if (units[i].kind !== "char") return (simple = false)
               }
-              // only text comes in
+              // only text comes in, and no text that is a block marker or
+              // a line break on the other side
               let text = ""
               for (const token of inserted.content) {
                 const node = token as Node
                 if (typeof node.is !== "function" || !node.is(Leaf.Text)) return (simple = false)
                 text += node.param as string
               }
+              if (new RegExp("[\\n\\u2028\\ufffc]").test(text)) return (simple = false)
+              const block = tr.newDoc.resolve(fromB).parent.node.type
+              const blockName = adapter.blockNameForNode(block, null)
               let marks: am.MarkSet = {}
               let explicit: string[] | null = null
               if (text) {
@@ -192,7 +202,7 @@ export function automergeSyncPlugin({
                 // inserted slice carries mark changes, not final marks)
                 const wanted = marksOf(tr.newDoc, fromB, toB)
                 if (!wanted) return (simple = false)
-                marks = amMarksFromMarks(adapter, wanted)
+                marks = amMarksFromMarks(adapter, wanted, blockName)
                 const before = units[from - 1]?.kind === "char" ? marksOf(start, fromA - 1, fromA) : null
                 const after = units[to]?.kind === "char" ? marksOf(start, toA, toA + 1) : null
                 const inside =
@@ -200,7 +210,7 @@ export function automergeSyncPlugin({
                 if (!inside) {
                   const names = new Set(Object.keys(marks))
                   for (const side of [before, after])
-                    if (side) for (const name of Object.keys(amMarksFromMarks(adapter, side))) names.add(name)
+                    if (side) for (const name of Object.keys(amMarksFromMarks(adapter, side, blockName))) names.add(name)
                   explicit = [...names]
                 }
               }
@@ -219,7 +229,9 @@ export function automergeSyncPlugin({
           for (const edit of edits.reverse()) {
             am.splice(doc, path.slice(), edit.index, edit.del, edit.text)
             if (!edit.explicit) continue
-            const range = { start: edit.index, end: edit.index + edit.text.length, expand: "none" as const }
+            // expand both, like every other mark in the note (see
+            // SchemaAdapter.updateSpansConfig)
+            const range = { start: edit.index, end: edit.index + edit.text.length, expand: "both" as const }
             for (const name of edit.explicit) {
               if (name in edit.marks) am.mark(doc, path.slice(), range, name, edit.marks[name])
               else am.unmark(doc, path.slice(), range, name)

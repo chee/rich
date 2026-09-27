@@ -4,7 +4,7 @@
 import { chromium } from "playwright"
 
 const url = process.env.RICH_DEV_URL ?? "http://localhost:5173/"
-const browser = await chromium.launch({ channel: "chromium" })
+const browser = await chromium.launch({ channel: "chromium", executablePath: process.env.CHROME_PATH })
 const page = await browser.newPage({ viewport: { width: 1100, height: 800 } })
 const problems = []
 const errors = []

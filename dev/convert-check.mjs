@@ -3,7 +3,7 @@
 import { chromium } from "playwright"
 
 const url = process.env.RICH_DEV_URL ?? "http://localhost:5173/"
-const browser = await chromium.launch({ channel: "chromium" })
+const browser = await chromium.launch({ channel: "chromium", executablePath: process.env.CHROME_PATH })
 const context = await browser.newContext({ viewport: { width: 1100, height: 800 } })
 await context.grantPermissions(["clipboard-read", "clipboard-write"])
 const page = await context.newPage()

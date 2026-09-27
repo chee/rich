@@ -8,7 +8,7 @@ await mkdir(new URL("./shots/", import.meta.url), { recursive: true })
 
 // The "chromium" channel is the new headless mode: unlike the old headless
 // shell it runs native HTML5 drag and drop, which the block handles need.
-const browser = await chromium.launch({ channel: "chromium" })
+const browser = await chromium.launch({ channel: "chromium", executablePath: process.env.CHROME_PATH })
 const page = await browser.newPage({ viewport: { width: 1100, height: 800 } })
 const problems = []
 const errors = []

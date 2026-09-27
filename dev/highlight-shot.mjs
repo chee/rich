@@ -2,7 +2,7 @@
 import { chromium } from "playwright"
 import { HIGHLIGHTS } from "../src/highlight.js"
 
-const browser = await chromium.launch({ channel: "chromium" })
+const browser = await chromium.launch({ channel: "chromium", executablePath: process.env.CHROME_PATH })
 
 for (const theme of ["light", "dark"]) {
   const page = await browser.newPage({

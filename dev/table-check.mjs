@@ -1,6 +1,6 @@
 import { chromium } from "playwright"
 
-const browser = await chromium.launch({ channel: "chromium" })
+const browser = await chromium.launch({ channel: "chromium", executablePath: process.env.CHROME_PATH })
 const page = await browser.newPage({ viewport: { width: 1100, height: 800 } })
 const errors = []
 page.on("pageerror", e => errors.push(String(e)))

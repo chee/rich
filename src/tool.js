@@ -4,6 +4,7 @@ import { history } from "wordgard/history"
 import { Blockquote, BulletList, Heading, OrderedList } from "wordgard/types"
 import {
   blockDoc,
+  lineBreak,
   paragraph,
   heading,
   blockquote,
@@ -21,25 +22,30 @@ import {
 } from "wordgard/schema"
 import { GardState } from "wordgard/state"
 import { tables } from "wordgard/table"
-import { automergeSyncPlugin, UnknownBlock } from "./wordgard/index.js"
+import { automergeSyncPlugin, UnknownBlock, UnknownEmbed, BlockExtras, ForeignMarks } from "./wordgard/index.js"
 import { docFromSpansCompat } from "./compat.js"
 import "./embed-element.js"
-import { richAdapter, Column, Columns, Embed, EmbedTool, RichImage } from "./adapter.js"
+import { richAdapter, Column, Columns, Embed, EmbedTool, Font, Indent, RichImage } from "./adapter.js"
 import { Highlight } from "./highlight.js"
 import { Logline } from "./logline.js"
 import { HtmlBlock } from "./html-block.js"
-import { Checked, TodoList } from "./todo-list.js"
+import { Checked, TodoList, TodoState } from "./todo-list.js"
 import { featureExtensions, richPlugins } from "./features.js"
 import { draftDiff } from "./drafts.js"
 import { docSelector, expandSelector } from "./plugin-catalog.js"
+import { syncTitle } from "./datatype.js"
+import "./cards.js"
 import "./rich.css"
 
-// The schema bundles' own versions of these rules only fire on empty lines;
-// these fire on a line with content after the cursor too.
+// Lush's markdown triggers: `-` or `*` for a bullet, `1.` for a number, `#`
+// to `###` for Title, Heading and Subheading, `>` for a quote (the to-do
+// brackets are in todo-list.js). The schema bundles' own versions of these
+// only fire on empty lines; these fire on a line with content after the
+// cursor too.
 const convertOnPrefix = [
-  InputRule.textblockType(/^(#{1,6}) $/, match => Heading.of(match[1].text.length)),
+  InputRule.textblockType(/^(#{1,3}) $/, match => Heading.of(match[1].text.length)),
   InputRule.wrapping(/^> $/, Blockquote),
-  InputRule.wrapping(/^ ?- $/, BulletList),
+  InputRule.wrapping(/^ ?[-*] $/, BulletList),
   InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1].text)),
 ]
 
@@ -98,25 +104,16 @@ export default function RichTool(handle, element) {
     parent: page,
     doc: docFromSpansCompat(richAdapter, am.spans(handle.doc(), ["content"])),
     config: [
-      // Node types the adapter maps but no editing bundle registers.
-      GardState.schemaElement.of([
-        Embed,
-        RichImage,
-        Columns,
-        Column,
-        Highlight,
-        EmbedTool,
-        Logline,
-        HtmlBlock,
-        TodoList,
-        Checked,
-        UnknownBlock,
-      ]),
+      // Every node and mark type the adapter maps, so whatever a document
+      // holds can be loaded, whether or not an editing bundle offers it.
+      GardState.schemaElement.of(richAdapter.elements),
 
       // Editing behaviour for exactly the node/mark types the adapter maps,
       // so the user can only create content that round-trips to Automerge.
       blockDoc(),
       paragraph(),
+      // Soft line breaks: U+2028 in the text, the way lush writes them.
+      lineBreak(),
       heading(),
       blockquote(),
       codeBlock(),
@@ -133,14 +130,15 @@ export default function RichTool(handle, element) {
 
       convertOnPrefix.map(rule => rule.extension),
 
-      // Tables: cells hold inline content, which is what the block encoding
-      // can represent.
-      tables({ cellContent: "inline" }),
+      // Tables, as lush has them: cells hold blocks, there is a header row
+      // or none, and no cell spans more than one row or column.
+      tables({ cellContent: "block", cellSpanning: false }),
 
       history(),
 
-      // Keep the editor in sync with the Automerge `content` field.
-      automergeSyncPlugin({ adapter: richAdapter, handle, path: ["content"] }),
+      // Keep the editor in sync with the Automerge `content` field, and the
+      // title with its first line.
+      automergeSyncPlugin({ adapter: richAdapter, handle, path: ["content"], onWrite: syncTitle }),
 
       // Drafts: the diff against the fork point, and no typing into a note the
       // host has pinned to a point in its history.

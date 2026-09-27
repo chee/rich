@@ -28,6 +28,101 @@ export const UnknownBlock = Leaf.Type.define<BlockMarker>("UnknownBlock", {
   },
 })
 
+/// A block that another editor wrote as an embed (`isEmbed: true`) and
+/// this schema has no node for — a calendar event, say. It sits on its own
+/// line, like every embed, and keeps the whole marker so it is written back
+/// untouched.
+export const UnknownEmbed = Leaf.Type.define<BlockMarker>("UnknownEmbed", {
+  group: Node.Group.Content,
+  validate: value => {
+    if (value == null || typeof value !== "object") {
+      throw new TypeError("Invalid unknown embed")
+    }
+  },
+  selectable: true,
+  shape: {
+    element: "rich-card",
+    attributes: block => ({
+      "block-type": block.type.val,
+      attrs: JSON.stringify(encodeAttrs(block.attrs)),
+    }),
+  },
+})
+
+/// Block attrs this schema doesn't model, carried on the block's node so
+/// they are written back as they were read (an embed's `alt`, a logline's
+/// provider extras). The value is JSON, in the encoding of {@link
+/// encodeAttrs}.
+export const BlockExtras = Mark.Type.define<string>("BlockExtras", {
+  target: Node.Group.Block,
+  validate: "string",
+  keepOnSplit: true,
+  keepOnTypeChange: false,
+  shape: { attribute: "data-extras", value: () => null },
+})
+
+/// Marks another editor wrote that this schema has no mapping for, kept
+/// on the text as JSON (`{"name": value}`) so they survive a write.
+export const ForeignMarks = Mark.Type.define<string>("ForeignMarks", {
+  validate: "string",
+  inclusive: false,
+  spanning: true,
+  shape: { element: "span", attributes: { class: "rich-foreign-marks" } },
+})
+
+// Attr values as JSON, keeping the automerge scalar types apart: a Str
+// (ImmutableString) is a bare JSON string, collaborative text is
+// `{"$text": …}`, and the scalars JSON can't say are tagged.
+function encodeValue(value: unknown): unknown {
+  if (am.isImmutableString(value)) return (value as am.ImmutableString).val
+  if (typeof value === "string") return { $text: value }
+  if (value instanceof Date) return { $date: value.getTime() }
+  if (value instanceof Uint8Array) return { $bytes: Array.from(value) }
+  if (value instanceof am.Counter) return { $counter: value.value }
+  if (Array.isArray(value)) return value.map(encodeValue)
+  if (value != null && typeof value === "object") {
+    const out: { [key: string]: unknown } = {}
+    for (const [k, v] of Object.entries(value)) out[k] = encodeValue(v)
+    return out
+  }
+  return value
+}
+
+function decodeValue(value: unknown): am.MaterializeValue {
+  if (typeof value === "string") return new am.ImmutableString(value)
+  if (Array.isArray(value)) return value.map(decodeValue) as am.MaterializeValue
+  if (value != null && typeof value === "object") {
+    const tagged = value as { [key: string]: unknown }
+    const keys = Object.keys(tagged)
+    if (keys.length === 1) {
+      if (typeof tagged.$text === "string") return tagged.$text
+      if (typeof tagged.$date === "number") return new Date(tagged.$date)
+      if (Array.isArray(tagged.$bytes)) return new Uint8Array(tagged.$bytes as number[])
+      if (typeof tagged.$counter === "number") return new am.Counter(tagged.$counter) as unknown as am.MaterializeValue
+    }
+    const out: { [key: string]: am.MaterializeValue } = {}
+    for (const [k, v] of Object.entries(tagged)) out[k] = decodeValue(v)
+    return out
+  }
+  return value as am.MaterializeValue
+}
+
+/// Encode block attrs as JSON-safe values (see {@link BlockExtras}).
+export function encodeAttrs(attrs: { [key: string]: am.MaterializeValue }): { [key: string]: unknown } {
+  // sorted, so the same attrs always make the same JSON (and mark)
+  const out: { [key: string]: unknown } = {}
+  for (const k of Object.keys(attrs).sort()) if (attrs[k] !== undefined) out[k] = encodeValue(attrs[k])
+  return out
+}
+
+/// The inverse of {@link encodeAttrs}. Plain strings come back as Str
+/// scalars, the way the Swift app writes them.
+export function decodeAttrs(json: { [key: string]: unknown }): { [key: string]: am.MaterializeValue } {
+  const out: { [key: string]: am.MaterializeValue } = {}
+  for (const [k, v] of Object.entries(json)) out[k] = decodeValue(v)
+  return out
+}
+
 /// Parsers that translate between an Automerge block marker and the
 /// wordgard node used to represent it. `fromAutomerge` produces the
 /// content node's parameter and marks, `fromWordgard` reads the block
@@ -54,6 +149,10 @@ export interface BlockMappingSpec {
   isEmbed?: boolean
   /// How to translate block attributes to and from the node.
   attrs?: BlockAttrParsers
+  /// The attrs `attrs` reads and writes. Every other attr is kept as it
+  /// was (see {@link BlockExtras}). `"*"` means the parsers handle all
+  /// of them.
+  owns?: readonly string[] | "*"
 }
 
 /// Parsers translating a mark value between Automerge and wordgard.
@@ -92,6 +191,7 @@ export interface NodeMapping {
   within: { [parentNodeName: string]: string } | null
   isEmbed: boolean
   attrs: BlockAttrParsers | null
+  owns: readonly string[] | "*"
 }
 
 /// Reverse (block-name -> nodes) mapping.
@@ -100,6 +200,7 @@ export interface BlockNodes {
   outer: Plot.Type | null
   isEmbed: boolean
   attrs: BlockAttrParsers | null
+  owns: readonly string[] | "*"
 }
 
 /// Normalised mark mapping.
@@ -134,9 +235,8 @@ export class SchemaAdapter {
   readonly marksByName: Map<string, MarkMapping> = new Map()
 
   constructor(spec: MappedSchemaSpec) {
-    this.elements = spec.elements.includes(UnknownBlock)
-      ? spec.elements
-      : [...spec.elements, UnknownBlock]
+    const always = [UnknownBlock, UnknownEmbed, BlockExtras, ForeignMarks]
+    this.elements = [...spec.elements, ...always.filter(e => !spec.elements.includes(e))]
     this.schema = Schema.define(this.elements)
 
     for (const block of spec.blocks || []) {
@@ -148,6 +248,7 @@ export class SchemaAdapter {
         within,
         isEmbed: block.isEmbed || false,
         attrs: block.attrs || null,
+        owns: block.owns ?? [],
       }
       this.nodeMappings.set(content, mapping)
 
@@ -157,6 +258,7 @@ export class SchemaAdapter {
           outer: null,
           isEmbed: mapping.isEmbed,
           attrs: mapping.attrs,
+          owns: mapping.owns,
         })
       }
       if (within != null) {
@@ -172,6 +274,7 @@ export class SchemaAdapter {
             outer,
             isEmbed: mapping.isEmbed,
             attrs: mapping.attrs,
+            owns: mapping.owns,
           })
         }
       }
@@ -211,14 +314,19 @@ export class SchemaAdapter {
     return this.blocksByName.get(blockName)
   }
 
-  /// The configuration passed to `am.updateSpans`, deriving mark
-  /// expansion behaviour from each mark's `inclusive` flag.
+  /// The configuration passed to `am.updateSpans`. Every mark expands
+  /// both ways, the way the Swift app writes them (its `update_spans`
+  /// uses the default config, and its incremental marks `ExpandMark::Both`),
+  /// so both editors leave the same expand metadata behind.
   updateSpansConfig(): am.UpdateSpansConfig {
-    const perMarkExpand: { [name: string]: "both" | "none" } = {}
-    for (const mapping of this.markMappings.values()) {
-      perMarkExpand[mapping.name] = mapping.type.inclusive ? "both" : "none"
-    }
-    return { defaultExpand: "both", perMarkExpand }
+    return { defaultExpand: "both" }
+  }
+
+  /// Marks not stored inside a block, by block name: headings are bold
+  /// already, code blocks are code already.
+  excludedMarks: { [blockName: string]: readonly string[] } = {
+    heading: ["strong"],
+    "code-block": ["code"],
   }
 }
 
@@ -226,15 +334,26 @@ export class SchemaAdapter {
 export function amMarksFromMarks(
   adapter: SchemaAdapter,
   marks: Mark.Set,
+  blockName?: string | null,
 ): am.MarkSet {
   const result: { [key: string]: am.MarkValue } = {}
   for (const mark of marks) {
+    if (mark.type === ForeignMarks) {
+      try {
+        Object.assign(result, JSON.parse(mark.value as string))
+      } catch {
+        // an unreadable foreign mark is no mark
+      }
+      continue
+    }
     const mapping = adapter.markMappings.get(mark.type)
     if (mapping == null) continue
     result[mapping.name] = mapping.parsers
       ? mapping.parsers.fromWordgard(mark.value)
       : (true as am.MarkValue)
   }
+  const excluded = blockName ? adapter.excludedMarks[blockName] : null
+  if (excluded) for (const name of excluded) delete result[name]
   return result
 }
 
@@ -246,15 +365,20 @@ export function marksFromAmMarks(
 ): Mark.Set {
   if (amMarks == null) return Mark.none
   let marks = Mark.none
+  let foreign: { [name: string]: unknown } | null = null
   for (const [name, value] of Object.entries(amMarks)) {
     // Filter tombstoned marks.
     if (value == null) continue
     const mapping = adapter.marksByName.get(name)
-    if (mapping == null) continue
+    if (mapping == null) {
+      ;(foreign ??= {})[name] = value instanceof Date ? value.toISOString() : value
+      continue
+    }
     const mark = mapping.parsers
       ? mapping.type.of(mapping.parsers.fromAutomerge(value))
       : mapping.type.default
     if (mark != null) marks = mark.addToSet(marks)
   }
+  if (foreign) marks = ForeignMarks.of(JSON.stringify(foreign)).addToSet(marks)
   return marks
 }

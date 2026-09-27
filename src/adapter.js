@@ -1,14 +1,21 @@
 import * as am from "@automerge/automerge"
 import { Leaf, Mark, Node, Plot } from "wordgard/doc"
 import {
-  Cell,
-  ColSpan,
-  HeaderCell,
+  BlockCell,
+  BlockHeaderCell,
+  Blockquote,
+  CodeBlock,
+  CodeBlockLanguage,
+  Code,
+  Emphasis,
+  Heading,
   Image,
   ImageAlt,
+  LineBreak,
   ListItem,
-  RowSpan,
+  Paragraph,
   Strikethrough,
+  Strong,
   Subscript,
   Superscript,
   Table,
@@ -18,20 +25,14 @@ import {
 import { SchemaAdapter, basicSchemaSpec } from "./wordgard/index.js"
 import { srcForImage } from "./files.js"
 import { Highlight, highlightParsers } from "./highlight.js"
-import { LOGLINE_FACTS, Logline } from "./logline.js"
+import { Logline } from "./logline.js"
 import { HtmlBlock } from "./html-block.js"
-import { Checked, TodoList, checkedParsers } from "./todo-list.js"
+import { Checked, TodoList, TodoState, todoParsers } from "./todo-list.js"
 
-// An embedded Patchwork document. Its parameter is the document's
-// AutomergeUrl; its shape renders `<rich-embed doc-url="…">` (see
-// embed-element.js), which draws the window chrome and mounts the document
-// itself — so no manual node view is needed.
-//
-// It is an INLINE leaf, written with `isEmbed: true`, because that is how the
-// Automerge rich-text schema spells an embed and how other editors on this
-// datatype (chee's Swift richtext app) write theirs. A block-level embed node
-// makes their documents fail to load with "Paragraph cannot contain child
-// Embed"; CSS gives it block layout inside its paragraph instead.
+// The document is the one chee's Swift notes app (lush) writes: automerge
+// rich text whose block markers and marks are named and shaped exactly as
+// lush names and shapes them. Everything here is a mapping onto that.
+
 // Which tool renders an embedded document. A mark rather than part of the
 // parameter, so it rides along as a `tool-id` attribute on the element and
 // stays out of the document's URL.
@@ -40,8 +41,12 @@ export const EmbedTool = Mark.Type.define("EmbedTool", {
   shape: { attribute: "tool-id", value: 0 },
 })
 
+// An embedded document: a photo, a sound, a video, any file, or a Patchwork
+// document. Lush writes all of them as one `embed` block holding the URL, on
+// a line of its own, and the element works out how to draw it from what the
+// URL points at (see embed-element.js).
 export const Embed = Leaf.Type.define("Embed", {
-  inline: true,
+  group: Node.Group.Content,
   validate: "string",
   selectable: true,
   shape: {
@@ -50,25 +55,23 @@ export const Embed = Leaf.Type.define("Embed", {
   },
 })
 
-// Our own image leaf, replacing wordgard's, so the `src` may be the
-// AutomergeUrl of a Patchwork file document as well as an ordinary URL: the
-// document keeps the automerge URL (durable, host-independent) and only the
-// rendered `<img>` gets the service-worker URL. It still maps to the standard
-// `image` block, so plain-URL images stay interoperable.
+// An `image` block, which lush reads but no longer writes: the `src` may be
+// the AutomergeUrl of a file document as well as an ordinary URL. Only the
+// rendered `<img>` gets the service-worker URL.
 export const RichImage = Leaf.Type.define("RichImage", {
-  inline: true,
+  group: Node.Group.Content,
   validate: "string",
   selectable: true,
   shape: {
     element: "img",
-    attributes: src => ({ src: srcForImage(src) }),
+    attributes: src => ({ src: srcForImage(src), class: "rich-image" }),
   },
   parseRules: [{ selector: "img[src]", readElement: element => element.src }],
 })
 
 // Columns. A `Columns` row holds `Column`s, each holding ordinary block
-// content — the Notion arrangement. `orientation: "row"` tells wordgard the
-// children sit side by side, so cursor motion across them behaves.
+// content. `orientation: "row"` tells wordgard the children sit side by side,
+// so cursor motion across them behaves.
 const ColumnGroup = Node.Group.define()
 
 export const Column = Plot.define("Column", {
@@ -87,38 +90,79 @@ export const Columns = Plot.define("Columns", {
   shape: { element: "div", attributes: { class: "rich-columns" } },
 })
 
+// The typeface a run of text is set in: lush's `font` mark, "serif" or
+// "hand". ("Code" in lush's font row is the `code` mark, not a font.)
+export const FONTS = ["serif", "hand"]
+
+export const Font = Mark.Type.define("Font", {
+  rank: 40,
+  spanning: true,
+  validate: "string",
+  shape: {
+    element: "span",
+    attributes: value => ({ class: `rich-font rich-font-${FONTS.includes(value) ? value : "other"}` }),
+  },
+})
+
+// How far a block that isn't a list item is indented: lush's `indent` attr,
+// 20pt a level. Lists nest instead.
+export const Indent = Mark.Type.define("Indent", {
+  target: [Paragraph, Heading, CodeBlock],
+  validate: "number",
+  keepOnSplit: true,
+  keepOnTypeChange: true,
+  shape: { attribute: "data-indent", value: level => String(level) },
+})
+
 const amString = value => {
   if (value == null) return null
-  return am.isImmutableString(value) ? value.val : String(value)
+  return am.isImmutableString(value) ? value.val : typeof value === "string" ? value : null
 }
 
-const numberMark = {
-  fromAutomerge: value => (typeof value === "number" ? value : Number(value) || 1),
-  fromWordgard: value => value,
+const withMark = (marks, mark) => (mark ? mark.addToSet(marks) : marks)
+
+const readIndent = block => {
+  const indent = block.attrs.indent
+  return typeof indent === "number" && indent > 0 ? Indent.of(Math.floor(indent)) : null
 }
 
-const isImageBlock = block => block.node === Image
-const withoutImage = list => list.filter(entry => !isImageBlock(entry))
-// The basic mapping knows list items in bullet and ordered lists; ours are
-// also in todo lists, where they carry a `checked` attr.
-const withoutListItem = list => list.filter(entry => entry.node !== ListItem)
+const writeIndent = (node, attrs = {}) => {
+  const indent = Indent.isInSet(node.tag.marks)
+  if (indent && indent.value > 0) attrs.indent = indent.value
+  return attrs
+}
 
-// The schema adapter for the "rich" tool: the basic Automerge rich-text
-// mapping, with our image node in place of the built-in one, plus the embed
-// leaf and the column blocks.
+const headingLevel = block => {
+  const level = block.attrs.level
+  return typeof level === "number" ? Math.min(6, Math.max(1, Math.floor(level))) : 1
+}
+
+// A logline's facts, as the leaf's JSON: strings plain, the rest as they are.
+const plainFacts = attrs => {
+  const facts = {}
+  for (const name of Object.keys(attrs).sort()) {
+    const value = attrs[name]
+    if (value == null) continue
+    const text = amString(value)
+    if (text != null) facts[name] = text
+    else if (typeof value === "number" || typeof value === "boolean") facts[name] = value
+  }
+  return facts
+}
+
+// The schema adapter for the "rich" tool.
 export const richAdapter = new SchemaAdapter({
-  ...basicSchemaSpec,
   elements: [
     ...basicSchemaSpec.elements.filter(element => element !== Image),
+    LineBreak,
+    CodeBlockLanguage,
     RichImage,
     Columns,
     Column,
     Table,
     TableRow,
-    Cell,
-    HeaderCell,
-    ColSpan,
-    RowSpan,
+    BlockCell,
+    BlockHeaderCell,
     Highlight,
     EmbedTool,
     Embed,
@@ -126,13 +170,56 @@ export const richAdapter = new SchemaAdapter({
     HtmlBlock,
     TodoList,
     Checked,
+    TodoState,
     Underline,
     Strikethrough,
     Superscript,
     Subscript,
+    Font,
+    Indent,
   ],
   blocks: [
-    ...withoutListItem(withoutImage(basicSchemaSpec.blocks)),
+    {
+      node: Paragraph,
+      block: "paragraph",
+      owns: ["indent"],
+      attrs: {
+        fromAutomerge: block => ({ marks: withMark(Mark.none, readIndent(block)) }),
+        fromWordgard: node => writeIndent(node),
+      },
+    },
+    {
+      node: Heading,
+      block: "heading",
+      owns: ["level", "indent"],
+      attrs: {
+        fromAutomerge: block => ({
+          param: headingLevel(block),
+          marks: withMark(Mark.none, readIndent(block)),
+        }),
+        fromWordgard: node => writeIndent(node, { level: node.tag.param }),
+      },
+    },
+    { node: Blockquote, block: "blockquote" },
+    {
+      node: CodeBlock,
+      block: "code-block",
+      owns: ["language", "indent"],
+      attrs: {
+        fromAutomerge: block => {
+          const language = amString(block.attrs.language)
+          let marks = withMark(Mark.none, readIndent(block))
+          if (language) marks = CodeBlockLanguage.of(language).addToSet(marks)
+          return { marks }
+        },
+        fromWordgard: node => {
+          const attrs = writeIndent(node)
+          const language = CodeBlockLanguage.isInSet(node.tag.marks)
+          if (language?.value) attrs.language = language.value
+          return attrs
+        },
+      },
+    },
     {
       node: ListItem,
       within: {
@@ -140,24 +227,26 @@ export const richAdapter = new SchemaAdapter({
         OrderedList: "ordered-list-item",
         TodoList: "todo-list-item",
       },
+      owns: ["checked", "state"],
       attrs: {
-        fromAutomerge: block => ({ marks: checkedParsers.fromAutomerge(block) }),
-        fromWordgard: checkedParsers.fromWordgard,
+        fromAutomerge: block => ({ marks: todoParsers.fromAutomerge(block) }),
+        fromWordgard: todoParsers.fromWordgard,
       },
     },
     {
       node: RichImage,
       block: "image",
       isEmbed: true,
+      owns: ["src", "url", "alt"],
       attrs: {
         fromAutomerge: block => {
-          const src = amString(block.attrs.src) ?? ""
+          const src = amString(block.attrs.url) ?? amString(block.attrs.src) ?? ""
           const alt = amString(block.attrs.alt)
           const marks = alt != null ? ImageAlt.of(alt).addToSet(Mark.none) : Mark.none
           return { param: src, marks }
         },
         fromWordgard: node => {
-          const attrs = { src: new am.ImmutableString(node.param) }
+          const attrs = { src: node.param }
           const alt = node.mark(ImageAlt)
           if (alt != null) attrs.alt = alt
           return attrs
@@ -170,17 +259,19 @@ export const richAdapter = new SchemaAdapter({
     // the block names live here. Nesting rides in each marker's `parents`.
     { node: Table, block: "table" },
     { node: TableRow, block: "table-row" },
-    { node: Cell, block: "table-cell" },
-    { node: HeaderCell, block: "table-header-cell" },
+    { node: BlockCell, block: "table-cell" },
+    { node: BlockHeaderCell, block: "table-header-cell" },
     {
       node: Embed,
       block: "embed",
       isEmbed: true,
+      // `alt`, `width` and `height` ride along untouched as extras.
+      owns: ["url", "tool"],
       attrs: {
         fromAutomerge: block => {
           const tool = amString(block.attrs.tool)
           return {
-            param: String(block.attrs.url ?? ""),
+            param: amString(block.attrs.url) ?? amString(block.attrs.src) ?? "",
             marks: tool ? EmbedTool.of(tool).addToSet(Mark.none) : Mark.none,
           }
         },
@@ -196,35 +287,33 @@ export const richAdapter = new SchemaAdapter({
       node: HtmlBlock,
       block: "html",
       isEmbed: true,
+      owns: ["html"],
       attrs: {
         fromAutomerge: block => ({ param: amString(block.attrs.html) ?? "" }),
-        fromWordgard: node => ({ html: new am.ImmutableString(node.param) }),
+        fromWordgard: node => ({ html: node.param }),
       },
     },
-    // A logline. Each fact is its own attr, the way the Swift app writes them;
-    // the leaf carries them as JSON. Facts we don't recognise are dropped
-    // rather than mangled.
+    // A logline. Each fact is its own attr, the way lush writes them; the
+    // leaf carries all of them as JSON, including ones from providers this
+    // editor has never heard of.
     {
       node: Logline,
       block: "context",
       isEmbed: true,
+      owns: "*",
       attrs: {
-        fromAutomerge: block => {
-          const facts = {}
-          for (const name of LOGLINE_FACTS) {
-            const value = block.attrs[name]
-            if (value == null) continue
-            facts[name] = typeof value === "number" ? value : amString(value)
-          }
-          return { param: JSON.stringify(facts) }
-        },
+        fromAutomerge: block => ({ param: JSON.stringify(plainFacts(block.attrs)) }),
         fromWordgard: node => {
-          const facts = JSON.parse(node.param || "{}")
+          let facts = {}
+          try {
+            facts = JSON.parse(node.param || "{}")
+          } catch {
+            // an unreadable logline has no facts
+          }
           const attrs = {}
-          for (const name of LOGLINE_FACTS) {
-            const value = facts[name]
+          for (const [name, value] of Object.entries(facts)) {
             if (value == null) continue
-            attrs[name] = typeof value === "number" ? value : new am.ImmutableString(String(value))
+            attrs[name] = typeof value === "number" || typeof value === "boolean" ? value : String(value)
           }
           return attrs
         },
@@ -232,9 +321,10 @@ export const richAdapter = new SchemaAdapter({
     },
   ],
   marks: [
-    ...basicSchemaSpec.marks,
-    { mark: ColSpan, name: "colspan", parsers: numberMark },
-    { mark: RowSpan, name: "rowspan", parsers: numberMark },
+    { mark: Strong, name: "strong" },
+    { mark: Emphasis, name: "em" },
+    { mark: Code, name: "code" },
+    basicSchemaSpec.marks.find(mark => mark.name === "link"),
     // Highlights are stored by NAME ("pink"), so the theme decides what pink
     // looks like.
     { mark: Highlight, name: "highlight", parsers: highlightParsers },
@@ -242,5 +332,13 @@ export const richAdapter = new SchemaAdapter({
     { mark: Strikethrough, name: "strikethrough" },
     { mark: Superscript, name: "superscript" },
     { mark: Subscript, name: "subscript" },
+    {
+      mark: Font,
+      name: "font",
+      parsers: {
+        fromAutomerge: value => (typeof value === "string" ? value : "serif"),
+        fromWordgard: value => String(value),
+      },
+    },
   ],
 })

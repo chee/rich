@@ -18,9 +18,11 @@ export const Highlight = Mark.Type.define("Highlight", {
   },
 })
 
+// A name this editor doesn't know is kept (and drawn pink), so another
+// editor's palette survives a save here.
 export const highlightParsers = {
-  fromAutomerge: value => named(typeof value === "string" ? value : "") ?? "pink",
-  fromWordgard: value => named(value) ?? "pink",
+  fromAutomerge: value => (typeof value === "string" && value ? value : "pink"),
+  fromWordgard: value => String(value),
 }
 
 export const highlightAt = state => {

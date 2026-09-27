@@ -3,10 +3,30 @@ import * as am from "@automerge/automerge"
 import {
   SchemaAdapter,
   BlockMarker,
+  BlockExtras,
   UnknownBlock,
+  UnknownEmbed,
   amMarksFromMarks,
+  decodeAttrs,
+  encodeAttrs,
   marksFromAmMarks,
 } from "./schema.js"
+
+/// A soft line break inside a block: the Swift app's NSTextView writes
+/// U+2028 LINE SEPARATOR, which the editor shows as a line break leaf.
+export const LINE_SEPARATOR = "\u2028"
+
+// The block names that nest as a table's or a column layout's cells. The
+// Swift app writes `table-cell` in the parents of blocks inside a header
+// cell too, so as a parent the two mean "the cell this block is in".
+const CELL_BLOCKS = ["table-cell", "table-header-cell"]
+
+const isLineBreak = (adapter: SchemaAdapter, node: Node) =>
+  node.isLeaf && adapter.schema.lineBreak != null && node.type === adapter.schema.lineBreak.type
+
+// The code block a line break (or a newline) splits into another marker.
+const isCodeBlock = (adapter: SchemaAdapter, plot: Plot | null) =>
+  plot != null && adapter.blockNameForNode(plot.type, null) === "code-block"
 
 // ---------------------------------------------------------------------------
 // Span helpers
@@ -62,7 +82,9 @@ function normalizeBlock(value: {
     : []
   const attrs: { [key: string]: am.MaterializeValue } = {}
   if (value.attrs && typeof value.attrs === "object") {
-    for (const [k, v] of Object.entries(value.attrs)) attrs[k] = v
+    // sorted: automerge hands them over in no particular order
+    const given = value.attrs as { [key: string]: am.MaterializeValue }
+    for (const k of Object.keys(given).sort()) attrs[k] = given[k]
   }
   return { type, parents, attrs, isEmbed: !!value.isEmbed }
 }
@@ -124,21 +146,42 @@ function walk(
   index: number,
   spans: Span[],
 ) {
-  if (node.is(UnknownBlock)) {
+  if (node.is(UnknownBlock) || node.is(UnknownEmbed)) {
     spans.push({ type: "block", value: node.param })
-    return
-  }
-  if (node.is(Leaf.Text)) {
-    spans.push({
-      type: "text",
-      value: node.param,
-      marks: amMarksFromMarks(adapter, node.marks),
-    })
     return
   }
 
   const parent = nodePath.length ? nodePath[nodePath.length - 1] : null
   const parentType = parent ? parent.type : null
+  const parentBlock = parentType ? adapter.blockNameForNode(parentType, null) : null
+
+  if (node.is(Leaf.Text)) {
+    const marks = amMarksFromMarks(adapter, node.marks, parentBlock)
+    if (isCodeBlock(adapter, parent) && node.param.includes("\n")) {
+      // One marker per line in a code block, the way the Swift app writes
+      // them. A newline typed as text (no line break leaf) is a line too.
+      node.param.split("\n").forEach((part, i) => {
+        if (i > 0) spans.push({ type: "block", value: codeLine(adapter, parent!, nodePath) })
+        if (part) spans.push({ type: "text", value: part, marks })
+      })
+      return
+    }
+    spans.push({ type: "text", value: node.param, marks })
+    return
+  }
+
+  if (isLineBreak(adapter, node)) {
+    if (isCodeBlock(adapter, parent)) {
+      spans.push({ type: "block", value: codeLine(adapter, parent!, nodePath) })
+    } else {
+      spans.push({
+        type: "text",
+        value: LINE_SEPARATOR,
+        marks: amMarksFromMarks(adapter, node.marks, parentBlock),
+      })
+    }
+    return
+  }
 
   if (node.isLeaf) {
     const blockName = adapter.blockNameForNode(node.type, parentType)
@@ -178,6 +221,13 @@ function walk(
 
   const childPath = nodePath.concat(node)
   node.content.forEach((c, i) => walk(adapter, c, childPath, i, spans))
+}
+
+// The marker a code block's next line starts with: the block's own.
+function codeLine(adapter: SchemaAdapter, block: Plot, nodePath: Plot[]): BlockMarker {
+  const outer = nodePath.slice(0, -1)
+  const grand = outer.length ? outer[outer.length - 1].type : null
+  return makeBlock(adapter, block, adapter.blockNameForNode(block.type, grand)!, outer, false)
 }
 
 function startsWithUnknownStructuralBlock(node: Plot): boolean {
@@ -227,8 +277,21 @@ function makeBlock(
   const mapping = adapter.mappingForNode(node.type)
   const rawAttrs = mapping?.attrs ? mapping.attrs.fromWordgard(node) : {}
   const attrs: { [key: string]: am.MaterializeValue } = {}
+  // Whatever this schema doesn't model goes back as it came.
+  const extras = BlockExtras.isInSet(node.marks)
+  if (extras) {
+    try {
+      Object.assign(attrs, decodeAttrs(JSON.parse(extras.value)))
+    } catch {
+      // unreadable extras are none
+    }
+  }
   for (const [k, v] of Object.entries(rawAttrs)) {
-    if (v !== undefined) attrs[k] = v
+    if (v === undefined) continue
+    // Strings as Str scalars, the way the Swift app writes them: a JS
+    // string would be stored as collaborative text, and each editor would
+    // rewrite the other's block on every save.
+    attrs[k] = typeof v === "string" ? new am.ImmutableString(v) : v
   }
   return {
     type: new am.ImmutableString(blockName),
@@ -244,7 +307,7 @@ function findParents(adapter: SchemaAdapter, nodePath: Plot[]): string[] {
     const p = nodePath[i]
     const pParent = i > 0 ? nodePath[i - 1].type : null
     const name = adapter.blockNameForNode(p.type, pParent)
-    if (name != null) parents.push(name)
+    if (name != null) parents.push(name === "table-header-cell" ? "table-cell" : name)
   }
   return parents
 }
@@ -263,13 +326,27 @@ export function indexUnits(adapter: SchemaAdapter, doc: Plot.Doc): IndexUnit[] {
   const units: IndexUnit[] = []
   let pos = 0
   const walkNode = (node: Node, nodePath: Plot[], index: number) => {
-    if (node.is(Leaf.Text)) {
-      const text = node.param
-      for (let i = 0; i < text.length; i++) units.push({ pos: pos++, kind: "char" })
-      return
-    }
     const parent = nodePath.length ? nodePath[nodePath.length - 1] : null
     const parentType = parent ? parent.type : null
+    if (node.is(Leaf.Text)) {
+      const text = node.param
+      const code = isCodeBlock(adapter, parent)
+      for (let i = 0; i < text.length; i++) {
+        // a newline in a code block is a block marker in automerge
+        units.push({ pos: pos++, kind: code && text[i] === "\n" ? "open" : "char" })
+      }
+      return
+    }
+    if (isLineBreak(adapter, node)) {
+      units.push({ pos, kind: isCodeBlock(adapter, parent) ? "open" : "leaf" })
+      pos++
+      return
+    }
+    if (node.is(UnknownBlock) || node.is(UnknownEmbed)) {
+      units.push({ pos, kind: "leaf" })
+      pos++
+      return
+    }
     if (node.isLeaf) {
       if (adapter.blockNameForNode(node.type, parentType) != null) {
         units.push({ pos, kind: "leaf" })
@@ -334,6 +411,15 @@ export function docFromSpans(
   const schema = adapter.schema
   const docType = schema.docTag.type
   const stack: Frame[] = [{ tag: null, content: [] }]
+  const lineBreak = schema.lineBreak
+
+  const cellTypes = new Set<Node.Type>()
+  for (const name of CELL_BLOCKS) {
+    const nodes = adapter.nodesForBlock(name)
+    if (nodes) cellTypes.add(nodes.content)
+  }
+  const sameType = (a: Node.Type, b: Node.Type) =>
+    a === b || (cellTypes.has(a) && cellTypes.has(b))
 
   const top = () => stack[stack.length - 1]
 
@@ -364,39 +450,30 @@ export function docFromSpans(
     for (const tag of wrap) openPlot(tag)
   }
 
+  const inCode = () =>
+    stack.length > 1 && adapter.blockNameForNode(topType(), null) === "code-block"
+
   const appendText = (value: string, marks: Mark.Set) => {
     ensureInline()
-    appendNode(top().content, Leaf.text(value, marks))
+    // Soft line breaks (and, in a code block, newlines left by an older
+    // encoding) become line break leaves.
+    const breaks = new RegExp(inCode() ? "[\\n\\u2028]" : "\\u2028")
+    const parts = lineBreak ? value.split(breaks) : [value]
+    parts.forEach((part, i) => {
+      if (i > 0) appendNode(top().content, lineBreak!.withMarks(inCode() ? Mark.none : marks))
+      if (part) appendNode(top().content, Leaf.text(part, marks))
+    })
   }
 
-  const emitBlock = (block: BlockMarker) => {
-    const nodes = adapter.nodesForBlock(block.type.val)
-
-    // Inline embed: place a leaf inside the current textblock.
-    if (block.isEmbed || (nodes != null && nodes.isEmbed)) {
-      ensureInline()
-      if (nodes == null) {
-        appendNode(top().content, UnknownBlock.of(block))
-        return
-      }
-      const { param, marks } = nodes.attrs
-        ? nodes.attrs.fromAutomerge(block)
-        : {}
-      const leaf = makeLeaf(nodes.content as Leaf.Type, param, marks)
-      appendNode(top().content, leaf)
-      return
-    }
-
-    const outer = outerNodeTypes(adapter, block)
-
-    // Reconcile the open stack with the desired wrapper chain, sharing
-    // a common prefix by type.
+  // Close and open plots until the open stack is the given wrapper chain,
+  // sharing a common prefix by type.
+  const reconcile = (outer: OuterNode[]) => {
     const open = stack.slice(1)
     let i = 0
     while (
       i < outer.length &&
       i < open.length &&
-      (open[i].tag as Plot.Tag).type === outer[i].type
+      sameType((open[i].tag as Plot.Tag).type, outer[i].type)
     ) {
       i++
     }
@@ -404,6 +481,82 @@ export function docFromSpans(
     for (let j = i; j < outer.length; j++) {
       openPlot(makePlotTag(outer[j].type, outer[j].param, outer[j].marks))
     }
+  }
+
+  const isTextblockName = (name: string) => {
+    const nodes = adapter.nodesForBlock(name)
+    return nodes != null && nodes.content instanceof Plot.Type && nodes.content.inlineContent
+  }
+
+  // The node's param and marks, with the attrs the mapping doesn't own
+  // riding along as extras.
+  const nodeAttrs = (
+    nodes: NonNullable<ReturnType<SchemaAdapter["nodesForBlock"]>>,
+    block: BlockMarker,
+  ) => {
+    const read = nodes.attrs ? nodes.attrs.fromAutomerge(block) : {}
+    let marks = read.marks ?? Mark.none
+    if (nodes.owns !== "*") {
+      const extra: { [key: string]: am.MaterializeValue } = {}
+      let any = false
+      for (const [k, v] of Object.entries(block.attrs)) {
+        if (nodes.owns.includes(k) || v === undefined) continue
+        extra[k] = v
+        any = true
+      }
+      if (any) marks = BlockExtras.of(JSON.stringify(encodeAttrs(extra))).addToSet(marks)
+    }
+    return { param: read.param, marks }
+  }
+
+  const emitBlock = (block: BlockMarker) => {
+    const nodes = adapter.nodesForBlock(block.type.val)
+    const embed = nodes ? nodes.isEmbed : block.isEmbed
+
+    // An embed is a line of its own. Older versions of this editor wrote
+    // them inside a paragraph (with the paragraph in their parents); the
+    // empty paragraph that held one goes, and the rest of the paragraph
+    // carries on after it.
+    if (embed) {
+      const legacy = block.parents.some(p => isTextblockName(p.val))
+      if (legacy) {
+        const frame = top()
+        if (stack.length > 1 && topType().inlineContent && frame.content.length === 0) stack.pop()
+      }
+      const parents = block.parents.filter(p => !isTextblockName(p.val))
+      reconcile(outerNodeTypes(adapter, parents, null))
+      let leaf: Node
+      if (nodes == null || !(nodes.content instanceof Leaf.Type)) {
+        leaf = UnknownEmbed.of(block)
+      } else {
+        const { param, marks } = nodeAttrs(nodes, block)
+        leaf = makeLeaf(nodes.content as Leaf.Type, param, marks)
+      }
+      while (stack.length > 1 && !schema.canContain(topType(), leaf.type)) closeTop()
+      appendNode(top().content, leaf)
+      return
+    }
+
+    const outer = outerNodeTypes(adapter, block.parents, block)
+
+    // The next line of a code block: the Swift app writes a marker per
+    // line, the editor holds the block whole.
+    if (nodes != null && block.type.val === "code-block" && inCode()) {
+      const open = stack.slice(1, -1)
+      const { param, marks } = nodeAttrs(nodes, block)
+      const tag = top().tag as Plot.Tag
+      if (
+        open.length === outer.length &&
+        open.every((frame, i) => sameType((frame.tag as Plot.Tag).type, outer[i].type)) &&
+        Mark.sameSet(tag.marks, marks) &&
+        (param === undefined || param === tag.param)
+      ) {
+        appendNode(top().content, lineBreak ? lineBreak : Leaf.text("\n"))
+        return
+      }
+    }
+
+    reconcile(outer)
 
     if (nodes == null) {
       while (stack.length > 1) closeTop()
@@ -412,20 +565,33 @@ export function docFromSpans(
       return
     }
 
-    const { param, marks } = nodes.attrs ? nodes.attrs.fromAutomerge(block) : {}
+    const { param, marks } = nodeAttrs(nodes, block)
     if (nodes.content instanceof Plot.Type) {
       openPlot(makePlotTag(nodes.content, param, marks))
     } else {
-      // A block-level leaf node (e.g. a horizontal rule or an embed).
       appendNode(top().content, makeLeaf(nodes.content as Leaf.Type, param, marks))
     }
   }
 
+  // Blocks the Swift app used to write as their own types, and now writes
+  // as a paragraph with a font mark on its text.
+  let blockFont: string | null = null
+
   for (const raw of amSpans) {
     if (raw.type === "block") {
-      emitBlock(normalizeBlock(raw.value as { [key: string]: am.MaterializeValue }))
+      let block = normalizeBlock(raw.value as { [key: string]: am.MaterializeValue })
+      blockFont = null
+      const name = block.type.val
+      if ((name === "serif" || name === "hand") && adapter.nodesForBlock(name) == null) {
+        blockFont = name
+        block = { ...block, type: new am.ImmutableString("paragraph") }
+      }
+      emitBlock(block)
     } else {
-      appendText(raw.value, marksFromAmMarks(adapter, raw.marks))
+      const amMarks = blockFont && !(raw.marks && "font" in raw.marks)
+        ? { ...raw.marks, font: blockFont }
+        : raw.marks
+      appendText(raw.value, marksFromAmMarks(adapter, amMarks))
     }
   }
 
@@ -440,16 +606,21 @@ export function docFromSpans(
 
 function outerNodeTypes(
   adapter: SchemaAdapter,
-  block: BlockMarker,
+  parents: am.ImmutableString[],
+  block: BlockMarker | null,
 ): OuterNode[] {
   const result: OuterNode[] = []
-  for (const parent of block.parents) {
+  for (const parent of parents) {
     const bn = adapter.nodesForBlock(parent.val)
     if (bn == null) continue
     if (bn.outer != null) result.push({ type: bn.outer })
-    if (bn.content instanceof Plot.Type) result.push({ type: bn.content })
+    // A textblock can't hold blocks: a parent naming one is left over from
+    // an older encoding.
+    if (bn.content instanceof Plot.Type && !bn.content.inlineContent) {
+      result.push({ type: bn.content })
+    }
   }
-  const self = adapter.nodesForBlock(block.type.val)
+  const self = block ? adapter.nodesForBlock(block.type.val) : null
   if (self != null && self.outer != null) result.push({ type: self.outer })
   return result
 }
