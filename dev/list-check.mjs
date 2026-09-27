@@ -74,6 +74,11 @@ check("list text does not get a second paragraph marker", nestedParagraphs.lengt
 await page.keyboard.press("Shift+Tab")
 await page.waitForTimeout(150)
 check(
+  "Shift-Tab brings it back out",
+  (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
+  await shape(),
+)
+check(
   "Shift-Tab un-nests the last item",
   (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
   await shape(),
@@ -81,6 +86,11 @@ check(
 
 await page.keyboard.press("Shift+Tab")
 await page.waitForTimeout(150)
+check(
+  "Shift-Tab brings it back out",
+  (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
+  await shape(),
+)
 check(
   "Shift-Tab stops at the top level",
   (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
@@ -90,8 +100,27 @@ check(
 await page.click("wg-content > ul > li:nth-child(1) > p")
 await page.keyboard.press("Tab")
 await page.waitForTimeout(150)
+// Lush nests any item, the first one too: it goes into a list inside an item
+// with no line of its own.
 check(
-  "Tab does nothing to the first item",
+  "Tab nests the first item, as in lush",
+  (await shape()) === "h1[title]ul[li[ul[li[p[one]ul[li[p[two!]]]]]]li[p[three]]]",
+  await shape(),
+)
+const firstTrip = await page.evaluate(() => window.richDev.roundTrip())
+check("the nested first item round trips", firstTrip.live === firstTrip.rebuilt)
+const firstSpans = (await page.evaluate(() => window.richDev.spans()))
+  .filter(span => span.type === "block")
+  .map(span => `${span.value.type}(${span.value.parents.length})`)
+check(
+  "and writes no empty item above it",
+  firstSpans.join(" ") === "heading(0) unordered-list-item(1) unordered-list-item(2) unordered-list-item(0)",
+  firstSpans.join(" "),
+)
+await page.keyboard.press("Shift+Tab")
+await page.waitForTimeout(150)
+check(
+  "Shift-Tab brings it back out",
   (await shape()) === "h1[title]ul[li[p[one]ul[li[p[two!]]]]li[p[three]]]",
   await shape(),
 )

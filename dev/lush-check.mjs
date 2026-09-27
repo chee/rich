@@ -203,11 +203,21 @@ check("a cell holds two lines", (await page.$$eval("wg-content table td", tds =>
 check("columns", (await has("wg-content .rich-columns .rich-column")) === 2)
 await page.screenshot({ path: "dev/shots/lush-note.png", fullPage: true })
 
+const typeAt = async (word, typed) => {
+  await page.evaluate(word => {
+    const editor = window.richDev.editor
+    let found = null
+    editor.state.doc.iterate(0, editor.state.doc.contentLength, (node, pos) => {
+      if (found == null && node.isText && node.param.includes(word)) found = pos + node.param.indexOf(word) + word.length
+    })
+    editor.dispatch({ selection: { anchor: found } })
+    editor.focus()
+  }, word)
+  await page.keyboard.type(typed, { delay: 20 })
+  await page.waitForTimeout(150)
+}
 // The title is derived from the first line, as lush derives it.
-await page.click("wg-content h1")
-await page.keyboard.press("End")
-await page.keyboard.type("!", { delay: 30 })
-await page.waitForTimeout(200)
+await typeAt("A lush note", "!")
 const titles = await page.evaluate(() => ({
   title: window.richDev.handle.doc().title,
   patchwork: window.richDev.handle.doc()["@patchwork"].title,
@@ -215,8 +225,38 @@ const titles = await page.evaluate(() => ({
 check("typing writes the title", titles.title === "A lush note!", JSON.stringify(titles))
 check("and @patchwork's", titles.patchwork === "A lush note!", JSON.stringify(titles))
 
+// Typing (the fast path straight into automerge) leaves automerge holding
+// what the editor would write, wherever it happens.
+for (const [word, typed] of [
+  ["let b", " + a"],
+  ["soft", "er"],
+  ["second quote", " (still)"],
+  ["bold", "er"],
+  ["line two", "!"],
+  ["right again", "?"],
+  ["after the embed", "."],
+  ["nested bullet", "s"],
+]) {
+  await typeAt(word, typed)
+  const now = await page.evaluate(() => ({ written: window.richDev.written(), stored: window.richDev.spans() }))
+  check(`typing after "${word}" keeps automerge in step`, same(now.written, now.stored), firstDiff(now.written, now.stored))
+}
+
+// Return in a code block is another code-block line, as in lush.
+await typeAt("+ a = 2", "")
+await page.keyboard.press("Enter")
+await page.keyboard.type("let c = 3", { delay: 20 })
+await page.waitForTimeout(200)
+{
+  const now = await page.evaluate(() => ({ written: window.richDev.written(), stored: window.richDev.spans() }))
+  const lines = now.stored.filter(span => span.type === "block" && span.value.type === "code-block")
+  check("Return in code makes a third code-block marker", lines.length === 3 && lines.every(line => line.value.attrs.language === "swift"), await page.$eval("wg-content pre", pre => pre.outerHTML))
+  check("and automerge keeps in step", same(now.written, now.stored), firstDiff(now.written, now.stored))
+}
+
 // A structural edit writes the whole note, and still keeps what rich doesn't
 // model.
+await typeAt("A lush note!", "")
 await page.keyboard.press("Enter")
 await page.keyboard.type("new line", { delay: 20 })
 await page.waitForTimeout(200)
@@ -228,7 +268,7 @@ check("the calendar event survives a write", find(after, "calendar-event")?.attr
 check("the unknown mark survives a write", after.some(span => span.type === "text" && span.marks?.mystery === "kept"))
 check("the font mark survives a write", after.some(span => span.type === "text" && span.marks?.font === "hand"))
 check("links are plain urls", after.some(span => span.type === "text" && span.marks?.link === "https://example.com/a?b=c"))
-check("code is one marker a line", after.filter(span => span.type === "block" && span.value.type === "code-block").length === 2)
+check("code is one marker a line", after.filter(span => span.type === "block" && span.value.type === "code-block").length === 3, JSON.stringify(after.filter(span => span.type === "block" && span.value.type === "code-block")))
 check("the soft break is U+2028", after.some(span => span.type === "text" && span.value.includes(" ")))
 check(
   "header cells nest under table-cell",
@@ -271,6 +311,33 @@ check(
 )
 check("old JSON links are written as plain urls", upgraded.some(span => span.marks?.link === "https://old.example"))
 check("an older note loads clean", (await has("wg-content > p > rich-embed")) === 0)
+
+// Lush lets any list item nest, the first one too, and depth can jump: the
+// items read as they are and write back without an empty item above them.
+const NESTED = [
+  block("unordered-list-item", ["unordered-list-item"]),
+  text("nested first"),
+  block("unordered-list-item"),
+  text("top"),
+  block("unordered-list-item", ["unordered-list-item", "unordered-list-item"]),
+  text("two deep"),
+  block("paragraph"),
+  text("after"),
+]
+await page.evaluate(spans => window.richDev.mount(spans), NESTED)
+await page.waitForTimeout(300)
+const nestedBack = await page.evaluate(() => window.richDev.written())
+check("nested-first list items write back as they came", same(nestedBack, NESTED), firstDiff(nestedBack, NESTED))
+check("no empty bullet is drawn", (await page.$$eval("wg-content li", items => items.filter(li => !li.textContent.trim()).length === 0 || items.every(li => li.querySelector("ul")))))
+
+// Tab on the first item nests it, as lush does.
+await page.evaluate(spans => window.richDev.mount(spans), [block("ordered-list-item"), text("one"), block("ordered-list-item"), text("two")])
+await page.waitForTimeout(200)
+await page.click("wg-content li >> nth=0")
+await page.keyboard.press("Tab")
+await page.waitForTimeout(200)
+const tabbed = (await page.evaluate(() => window.richDev.spans())).filter(span => span.type === "block").map(span => span.value.parents.join("/"))
+check("Tab nests the first item", JSON.stringify(tabbed) === JSON.stringify(["ordered-list-item", ""]), JSON.stringify(tabbed))
 
 check("no page errors", errors.length === 0, errors.slice(0, 3).join(" / "))
 await browser.close()

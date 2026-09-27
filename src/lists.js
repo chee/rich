@@ -5,6 +5,7 @@
 import { Node, Plot } from "wordgard/doc"
 import { KeyBinding } from "wordgard/editor"
 import { autoJoinBlocks } from "wordgard/command"
+import { ListItem } from "wordgard/types"
 
 const isList = plot => plot.node.type.hasRole(Node.Role.List)
 
@@ -21,7 +22,18 @@ export function sinkListItem(state) {
   if (!item) return false
   const list = item.parent
   const previous = item.previousSibling
-  if (!previous || previous.isLeaf) return false
+  // The first item, or one after a leaf, nests too, as in lush: it goes
+  // into a list inside an item of its own, which has no line of its own.
+  if (!previous || previous.isLeaf) {
+    return autoJoinBlocks(state, {
+      changes: [
+        { from: item.before, insert: [ListItem, list.node.tag] },
+        { from: item.after, insert: [Plot.End, Plot.End] },
+      ],
+      userEvent: "list.sink",
+      scrollIntoView: true,
+    })
+  }
   if (!state.schema.canContain(previous.type, list.node.type)) return false
   return autoJoinBlocks(state, {
     changes: [
@@ -42,6 +54,20 @@ export function liftListItem(state) {
   // item's closers, which is what the edits below move around.
   const outer = list.parent
   if (!outer || !list.isLast || !outer.parent || !isList(outer.parent)) return false
+  // An item with no line of its own around the list (how the first item
+  // nests): the first item simply comes out of it.
+  if (outer.node.content.length === 1 && item.isFirst) {
+    return autoJoinBlocks(state, {
+      changes: [
+        { from: item.before - 2, to: item.before },
+        item.isLast
+          ? { from: item.after, to: item.after + 2 }
+          : { from: item.after, insert: [ListItem, list.node.tag] },
+      ],
+      userEvent: "list.lift",
+      scrollIntoView: true,
+    })
+  }
   return autoJoinBlocks(state, {
     changes: [
       item.isFirst

@@ -203,15 +203,7 @@ function walk(
 
   // Plot node.
   const blockName = adapter.blockNameForNode(node.type, parentType)
-  let emit = false
-  if (blockName != null) {
-    if (node.type.inlineContent) {
-      emit = !isRenderOnlyTextblock(adapter, node, parent, index)
-        && !startsWithUnknownStructuralBlock(node)
-    } else {
-      emit = containerEmits(adapter, node)
-    }
-  }
+  const emit = blockName != null && emits(adapter, node, parent, index)
   if (emit && blockName != null) {
     spans.push({
       type: "block",
@@ -228,6 +220,26 @@ function codeLine(adapter: SchemaAdapter, block: Plot, nodePath: Plot[]): BlockM
   const outer = nodePath.slice(0, -1)
   const grand = outer.length ? outer[outer.length - 1].type : null
   return makeBlock(adapter, block, adapter.blockNameForNode(block.type, grand)!, outer, false)
+}
+
+// Whether a mapped plot writes a marker of its own. Both the span writer and
+// the index map ask this, so they always agree.
+function emits(adapter: SchemaAdapter, node: Plot, parent: Plot | null, index: number): boolean {
+  if (node.type.inlineContent) {
+    return !isRenderOnlyTextblock(adapter, node, parent, index) && !startsWithUnknownStructuralBlock(node)
+  }
+  // A list item that holds only a nested list (lush lets any item nest,
+  // the first one too) has no line of its own: its nested items' parents
+  // open it again on the way back.
+  if (isBareListItem(adapter, node)) return false
+  return containerEmits(adapter, node)
+}
+
+function isBareListItem(adapter: SchemaAdapter, node: Plot): boolean {
+  const mapping = adapter.mappingForNode(node.type)
+  if (mapping?.within == null) return false
+  const first = node.content[0]
+  return first != null && !first.isLeaf && first.type.hasRole(Node.Role.List)
 }
 
 function startsWithUnknownStructuralBlock(node: Plot): boolean {
@@ -355,13 +367,7 @@ export function indexUnits(adapter: SchemaAdapter, doc: Plot.Doc): IndexUnit[] {
       return
     }
     const blockName = adapter.blockNameForNode(node.type, parentType)
-    let emit = false
-    if (blockName != null) {
-      emit = node.type.inlineContent
-        ? !isRenderOnlyTextblock(adapter, node, parent, index)
-        : containerEmits(adapter, node)
-    }
-    if (emit) units.push({ pos, kind: "open" })
+    if (blockName != null && emits(adapter, node, parent, index)) units.push({ pos, kind: "open" })
     pos++
     const childPath = nodePath.concat(node)
     node.content.forEach((c, i) => walkNode(c, childPath, i))
