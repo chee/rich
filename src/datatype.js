@@ -93,19 +93,15 @@ export function syncTitle(doc) {
   setText(doc, ["@patchwork", "title"], title)
 }
 
-// A copy of a note as a new document with no shared history: the plain
-// fields copied over, and the content written afresh from the source's
-// spans — which carry the block markers and marks a materialised doc loses
-// (`doc.content` reads as a flat string).
+// A copy of a note as a new document with no shared history, the way the
+// site editor duplicates a post: `repo.create` seeded from the source doc.
+// Only `content` needs more than that: a materialised doc reads it as a flat
+// string, so it is rewritten from the source's spans, which carry the block
+// markers and marks.
 export function copyNote(repo, source, { title } = {}) {
-  const handle = repo.create()
   const spans = am.spans(source, ["content"])
+  const handle = repo.create({ ...plain(source), content: "" })
   handle.change(doc => {
-    for (const [key, value] of Object.entries(source)) {
-      if (key === "content") continue
-      doc[key] = plain(value)
-    }
-    doc.content = ""
     am.updateSpans(doc, ["content"], spans, richAdapter.updateSpansConfig())
     if (title != null) {
       setText(doc, ["title"], title)
