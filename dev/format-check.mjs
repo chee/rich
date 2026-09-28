@@ -479,6 +479,26 @@ await page.keyboard.press("Escape")
 await page.waitForTimeout(150)
 check("and the room goes when it closes", await page.evaluate(() => getComputedStyle(document.querySelector(".rich-tool")).getPropertyValue("--rich-find-room") === ""))
 
+// Looks: bold in a heading is the heading's own weight; a frost band under
+// the bar; the popover's bullet is a dot you can see.
+await mount([block("heading", [], { level: 1 }), text("plain "), text("bold", { strong: true }), block("paragraph"), text("body")])
+const weights = await page.evaluate(() => ({
+  heading: getComputedStyle(document.querySelector("wg-content h1")).fontWeight,
+  strong: document.querySelector("wg-content h1 strong") ? getComputedStyle(document.querySelector("wg-content h1 strong")).fontWeight : null,
+}))
+check("a strong mark in a heading draws at the heading's weight", weights.strong == null || weights.strong === weights.heading, JSON.stringify(weights))
+check("a frost band under the bar", await page.evaluate(() => {
+  const frost = document.querySelector(".rich-topfrost")
+  return Boolean(frost) && getComputedStyle(frost).backdropFilter.includes("blur") && frost.getBoundingClientRect().height === 52 + 24
+}))
+await caretAt("body")
+await openAa()
+check("the Bulleted List marker is a visible dot", await page.$eval(".rich-style-bullet .rich-style-marker", node => {
+  const dot = getComputedStyle(node, "::before")
+  return dot.width === "5px" && dot.height === "5px"
+}))
+await closeAa()
+
 // --- Duplicate --------------------------------------------------------------
 
 const moreItems = async () => {
