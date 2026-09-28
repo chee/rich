@@ -1126,8 +1126,10 @@ class TopBar {
   }
 
   // Phone width: lush's iOS layout, where the format popover is an island.
+  // The window's width, not the note's: a narrow pane on a wide screen still
+  // gets the popover under its button, unless it's too thin to hold one.
   narrow() {
-    return this.context.element.getBoundingClientRect().width < 560
+    return window.innerWidth < 560 || this.context.element.getBoundingClientRect().width < 380
   }
 
   toggle(make) {
