@@ -827,7 +827,11 @@ function noteMenu(bar) {
     // A duplicate is a new note, so it needs a repo to make one in, and only
     // a note is rich's to copy: a host whose document is something else (the
     // site editor's posts) duplicates it its own way, into its own lists.
-    globalThis.repo && isNote(context.handle?.doc?.()) ? menuItem("Duplicate", "duplicate", act(() => duplicate(bar))) : null,
+    typeof context.options?.duplicate === "function"
+      ? menuItem("Duplicate", "duplicate", act(() => context.options.duplicate()))
+      : context.options?.duplicate !== false && globalThis.repo && isNote(context.handle?.doc?.())
+        ? menuItem("Duplicate", "duplicate", act(() => duplicate(bar)))
+        : null,
     context.handle?.url
       ? menuItem("Copy Link", "copyLink", act(() => navigator.clipboard?.writeText(context.handle.url)))
       : null,

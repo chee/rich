@@ -93,8 +93,12 @@ function followHostScheme(element) {
   }
 }
 
-// The render contract: (handle, element) => cleanup.
-export default function RichTool(handle, element) {
+// The render contract: (handle, element) => cleanup. A host that isn't
+// Patchwork can pass options:
+// - `syncTitle: false` keeps `title` its own (a blog post's title isn't its
+//   first line);
+// - `duplicate`: `false` hides Duplicate, a function does the host's own.
+export default function RichTool(handle, element, options = {}) {
   element.classList.add("rich-tool")
   registerFonts()
   const stopScheme = followHostScheme(element)
@@ -114,6 +118,7 @@ export default function RichTool(handle, element) {
   const context = {
     handle,
     element,
+    options,
     adapter: richAdapter,
     blockTypes: () => blocks.get(),
     slashCommands: () => commands.get(),
@@ -187,7 +192,7 @@ export default function RichTool(handle, element) {
 
       // Keep the editor in sync with the Automerge `content` field, and the
       // title with its first line.
-      automergeSyncPlugin({ adapter: richAdapter, handle, path: ["content"], onWrite: syncTitle }),
+      automergeSyncPlugin({ adapter: richAdapter, handle, path: ["content"], onWrite: options.syncTitle === false ? undefined : syncTitle }),
 
       // Drafts: the diff against the fork point, and no typing into a note the
       // host has pinned to a point in its history.
@@ -238,6 +243,19 @@ export default function RichTool(handle, element) {
 
   // Handle for embedders (and the dev harness) that want to drive the editor.
   page.wordgard = editor
+  // For hosts (and checks): the block types and commands this note offers,
+  // and running one by name or id.
+  element.rich = {
+    commands: () => [...context.blockTypes(), ...context.slashCommands()],
+    run(name) {
+      const item = element.rich.commands().find(item => item.name === name || item.id === name)
+      if (!item) return false
+      editor.focus()
+      if (item.type === "rich:block") item.apply(editor, context)
+      else item.run(editor, context)
+      return true
+    },
+  }
 
   return () => {
     stopScheme()

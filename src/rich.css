@@ -426,59 +426,11 @@
 }
 
 /* Slash menu. */
-.rich-slash {
-  min-width: 15rem;
-  max-height: 19rem;
-  overflow-y: auto;
-  padding: 4px;
-  border: 1px solid var(--rich-border);
-  border-radius: 10px;
-  background: var(--rich-panel);
-  box-shadow: var(--rich-shadow);
-  font-family: var(--rich-family);
-  font-size: 0.875rem;
-  color: var(--rich-line);
-}
 
-.rich-slash-group {
-  padding: 6px 8px 2px;
-  font-size: 0.6875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--rich-muted);
-}
 
-.rich-slash-item {
-  all: unset;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-}
 
-.rich-slash-item:hover {
-  background: var(--rich-sunk);
-}
 
-.rich-slash-item.selected {
-  background: color-mix(in oklch, var(--rich-accent) 25%, var(--rich-panel));
-  box-shadow: inset 2px 0 0 var(--rich-accent);
-}
 
-.rich-slash-icon {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  background: var(--rich-fill);
-  border: 1px solid var(--rich-border);
-  color: var(--rich-line);
-}
 
 .rich-dialog {
   font-family: var(--rich-family);
@@ -723,11 +675,6 @@
 }
 
 /* Blocks and commands read differently in the slash menu. */
-.rich-slash-kind {
-  margin-left: auto;
-  font-size: 0.6875rem;
-  color: var(--rich-faint);
-}
 
 /* The draft diff: what this draft added to the note, and what it took out.
    Additions are marked in place; a deletion has nowhere to be, so it is drawn

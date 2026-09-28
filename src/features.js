@@ -10,7 +10,7 @@ import { GardState } from "wordgard/state"
 import { topBar } from "./topbar.js"
 import { imageDropAndPaste } from "./images.js"
 import { spansClipboard } from "./spans-clipboard.js"
-import { slashCommands, slashMenu } from "./slash.js"
+import { slashCommands } from "./slash.js"
 import { blockTypes } from "./block-types.js"
 import { richKeys } from "./keys.js"
 import { htmlEditing } from "./html-block.js"
@@ -127,7 +127,6 @@ const opening = () =>
     : OPENINGS[Math.floor(Math.random() * OPENINGS.length)]
 
 export const featurePlugins = [
-  feature("slash", "Slash menu", "core", context => slashMenu(context)),
   feature("topbar", "Top bar", "core", context => topBar(context)),
   feature("find", "Find in note", "core", context => findInNote(context)),
   feature("tables", "Table editing", "core", () => tableEditing()),

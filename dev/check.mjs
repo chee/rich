@@ -45,19 +45,12 @@ const blocks = () =>
 const docJSON = () =>
   page.evaluate(() => JSON.stringify(window.richDev.editor.state.doc.toJSON()))
 
-// Run a slash command by name.
-async function slash(query, expected) {
-  await type(`/${query}`)
-  await page.waitForSelector(".rich-slash-item", { timeout: 2000 }).catch(async error => {
-    await shot(`slash-failed-${query}`)
-    throw error
-  })
-  const names = await page.$$eval(".rich-slash-name", items => items.map(item => item.textContent))
-  if (expected) {
-    check(`slash /${query} lists ${expected}`, names.includes(expected), names.join(", "))
-  }
-  await page.keyboard.press("Enter")
-  await page.waitForTimeout(250)
+// Run a block type or command by name, the way the top bar's menus do
+// (there is no slash menu).
+async function run(name, on = page) {
+  const ran = await on.evaluate(name => document.querySelector(".rich-tool").rich.run(name), name)
+  check(`${name} is offered`, ran)
+  await on.waitForTimeout(250)
 }
 
 // Later sections work on their own page: a note that has accumulated a dozen
@@ -88,43 +81,17 @@ await page.click("wg-content")
 await type("Shopping list")
 await page.keyboard.press("Enter")
 
-// Slash menu
-await type("/")
-await page.waitForSelector(".rich-slash-item", { timeout: 2000 })
-const itemCount = await page.$$eval(".rich-slash-item", items => items.length)
-check("slash menu opens", itemCount > 8, `${itemCount} items`)
-const groups = await page.$$eval(".rich-slash-group", items => items.map(i => i.textContent))
-check("blocks and commands are distinguished", groups[0] === "Turn into" && groups.length > 1, groups.join(", "))
-check(
-  "block types are their own kind",
-  (await page.$$(".rich-slash-item.block")).length >= 8 &&
-    (await page.$$(".rich-slash-item.command")).length >= 5,
-)
-await shot("01-slash-menu")
-
-await type("bul")
-const filtered = await page.$$eval(".rich-slash-name", items => items.map(item => item.textContent))
-check("slash filters", filtered.length === 1 && filtered[0] === "Bulleted List", filtered.join(", "))
-await page.keyboard.press("Enter")
+await run("Bulleted List")
 await type("milk")
 check(
-  "slash applied",
+  "bulleted list applied",
   (await blocks()).some(block => block.startsWith("ul:")),
 )
 
 // Registry-contributed command (dev/main.js registers it through the stub)
 await page.keyboard.press("Enter")
-await slash("sig", "Signature")
+await run("Signature")
 check("registry command ran", (await page.textContent("wg-content")).includes("— chee"))
-
-// Escape dismisses
-await page.keyboard.press("Enter")
-await type("/")
-await page.waitForSelector(".rich-slash-item")
-await page.keyboard.press("Escape")
-await page.waitForTimeout(100)
-check("escape closes menu", (await page.$$(".rich-slash-item")).length === 0)
-await page.keyboard.press("Backspace")
 
 // Formatting is lush's Aa popover in the top bar; there is no floating bar
 // and there are no block handles (dev/topbar-check.mjs covers the popover).
@@ -144,7 +111,7 @@ await page.keyboard.press("Escape")
 
 // Columns
 await page.keyboard.press("Backspace")
-await slash("col", "2 columns")
+await run("2 columns")
 await type("left side")
 check("columns created", (await page.$$(".rich-columns .rich-column")).length === 2)
 check(
@@ -160,10 +127,8 @@ await shot("03-columns")
   const table = await freshPage()
   await table.keyboard.type("Notes", { delay: 40 })
   await table.keyboard.press("Enter")
-  await table.keyboard.type("/table", { delay: 40 })
-  await table.waitForSelector(".rich-slash-item")
-  await table.keyboard.press("Enter")
-  await table.waitForTimeout(300)
+  await run("Table", table)
+  await table.waitForTimeout(100)
   await table.keyboard.type("cell", { delay: 40 })
   await table.waitForTimeout(200)
   check(
@@ -244,7 +209,7 @@ await page.evaluate(() => {
   editor.focus()
 })
 await page.keyboard.press("Enter")
-await slash("plugins")
+await run("plugins")
 await page.waitForTimeout(250)
 check("plugins panel opens", await page.isVisible(".rich-plugins-panel"))
 await shot("05-plugins")
