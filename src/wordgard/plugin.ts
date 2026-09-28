@@ -252,18 +252,34 @@ export function automergeSyncPlugin({
         const newDoc = docFromSpans(adapter, spans)
         this.reconciledHeads = heads
 
-        const diff = diffDocs(this.wg.state.doc, newDoc)
+        const doc = this.wg.state.doc
+        const diff = diffDocs(doc, newDoc)
         if (diff == null) return
 
-        this.wg.dispatch({
-          changes: { from: diff.from, to: diff.to, insert: diff.slice, fit: true },
-          annotations: [
-            reconcileAnnotation.of(true),
-            Transaction.addToHistory.of(false),
-            Transaction.remote.of(true),
-          ],
-          scrollIntoView: false,
-        })
+        const annotations = [
+          reconcileAnnotation.of(true),
+          Transaction.addToHistory.of(false),
+          Transaction.remote.of(true),
+        ]
+        // The diff's slice fits where it goes as it is (see diffDocs), so
+        // it goes in unfitted: fitting would "repair" what it doesn't
+        // expect, such as a list item that holds only a nested list (which
+        // is how a peer nests a first item), and leave the old structure.
+        // Should it not fit after all, the whole note is replaced.
+        try {
+          this.wg.dispatch({
+            changes: { from: diff.from, to: diff.to, insert: diff.slice },
+            annotations,
+            scrollIntoView: false,
+          })
+        } catch (error) {
+          console.warn("rich: replacing the whole note with a peer's change", error)
+          this.wg.dispatch({
+            changes: { from: 0, to: doc.contentLength, insert: newDoc.slice(0, newDoc.contentLength) },
+            annotations,
+            scrollIntoView: false,
+          })
+        }
       }
 
       remove() {

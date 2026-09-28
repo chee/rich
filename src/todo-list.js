@@ -123,8 +123,9 @@ const applyBracketState = Wordgard.Plugin.define(wg => ({
   },
 })).extension
 
-// `wrap` lets the caller take the bracket rule over inside lists and quotes
-// (see triggers.js, which imports this module).
+// `wrap` lets the caller take the bracket rule over: rich's own tool hands in
+// lush's trigger (triggers.js), which sets the style and the state the way
+// the Aa popover does. Unwrapped, the rule wraps the line in a to-do list.
 export function todoLists(wrap = rule => rule) {
   return [
     wrap(createOnBrackets, match => ({ id: "todo", todo: BRACKET_STATES[match[1]?.text ?? ""] ?? "open" })).extension,

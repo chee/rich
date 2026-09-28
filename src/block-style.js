@@ -14,6 +14,7 @@
 // are one code block, as they are when the note is opened again.
 import * as am from "@automerge/automerge"
 import { GardSelection } from "wordgard/state"
+import { CellSelection } from "wordgard/table"
 import { richAdapter } from "./adapter.js"
 import { diffDocs, docFromSpans, indexFromPos, indexUnits, spansFromDoc } from "./wordgard/index.js"
 
@@ -79,7 +80,9 @@ const editable = block => !block.isEmbed && !FRAMES.has(block.type) && !["embed"
 export const containerPrefix = parents =>
   parents[0] === "table" ? parents.slice(0, 3) : parents[0] === "columns" ? parents.slice(0, 2) : []
 
-const listDepth = block => block.parents.filter(parent => LIST_TYPES.includes(parent)).length
+// How deep a line sits, not counting the table cell or column holding it:
+// lush's parents, which a cell's own editor counts from the cell.
+const depth = block => block.parents.length - containerPrefix(block.parents).length
 
 // The note's lines: each block marker, where it is in the spans and in
 // automerge's sequence, and where its text ends.
@@ -249,7 +252,13 @@ export function editLines(wg, edit, userEvent = "format.block") {
       }
       const anchor = map(state.selection.anchor)
       const head = map(state.selection.head)
-      if (anchor != null && head != null) spec.selection = { anchor, head }
+      if (anchor != null && head != null) {
+        // A selection running into a table is a cell selection there. Hand
+        // it over as one: left to the table's own normalizing, it would be
+        // mapped through this change a second time, and past the end.
+        const selection = GardSelection.Text.create({ anchor, head })
+        spec.selection = CellSelection.normalize(selection, next) ?? selection
+      }
     }
   }
   wg.dispatch(spec)
@@ -320,7 +329,7 @@ export function indentLines(wg, direction, { listsOnly = false } = {}) {
       // As in lush, outdenting from a list item at the top level makes the
       // lines Body.
       const first = chosen[0].own
-      if (!listsOnly && direction < 0 && LIST_TYPES.includes(first.type) && !listDepth(first)) {
+      if (!listsOnly && direction < 0 && LIST_TYPES.includes(first.type) && !depth(first)) {
         for (const line of chosen) {
           line.own = { type: "paragraph", parents: containerPrefix(line.own.parents), attrs: {}, isEmbed: false }
         }
@@ -342,8 +351,10 @@ export function indentLines(wg, direction, { listsOnly = false } = {}) {
       for (const line of lineSet) {
         const block = line.own
         if (LIST_TYPES.includes(block.type)) {
+          // a list line goes into a list of its own kind, or out of what it
+          // was last in
           if (direction > 0) block.parents.push(block.type)
-          else if (LIST_TYPES.includes(block.parents[block.parents.length - 1])) block.parents.pop()
+          else if (depth(block) > 0) block.parents.pop()
         } else if (!listsOnly && INDENTABLE.includes(block.type)) {
           const level = Math.max(0, Math.floor(Number(block.attrs.indent) || 0) + direction)
           if (level > 0) block.attrs.indent = level

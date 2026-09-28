@@ -457,6 +457,13 @@ check(
   await runs(),
 )
 
+// A peer nesting a list item (lush's Tab) arrives nested, even where the
+// item has no item above it to nest under.
+await mount([block("paragraph"), text("intro"), block("unordered-list-item"), text("only item"), block("paragraph"), text("outro")])
+await peerRestyles("only item", "unordered-list-item", ["unordered-list-item"])
+await page.waitForTimeout(200)
+check("a peer's nested item arrives nested", await same(), await page.$eval("wg-content", n => n.innerHTML.slice(0, 300)))
+
 // --- Duplicate --------------------------------------------------------------
 
 const moreItems = async () => {
@@ -508,6 +515,22 @@ await caretAt("a")
 await page.keyboard.press("ArrowDown")
 await attach("Logline")
 check("an empty line is taken by the block", (await kinds()) === "paragraph context paragraph paragraph", await kinds())
+
+// Choose Photo… and Attach File… put what they store after the line too.
+await mount([block("paragraph"), text("first"), block("paragraph"), text("second")])
+await caretAt("first", 1)
+const pick = async (item, file) => {
+  const chooser = page.waitForEvent("filechooser")
+  await attach(item)
+  await (await chooser).setFiles(file)
+  await page.waitForTimeout(500)
+}
+await pick("Choose Photo…", { name: "pink.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a0000000d4948445200000001000000010806000000", "hex") })
+await pick("Attach File…", { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") })
+check("a photo and a file go after the line, in the order they came", (await kinds()) === "paragraph embed embed paragraph paragraph", await kinds())
+await page.keyboard.type("y", { delay: 30 })
+await page.waitForTimeout(150)
+check("with the caret below them", /\|embed\{[^}]*\} \|paragraph 'y' \|paragraph 'second'$/.test(await runs()), await runs())
 
 // --- Logline… ------------------------------------------------------------------
 
