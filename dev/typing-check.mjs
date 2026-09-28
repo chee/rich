@@ -178,6 +178,36 @@ check("and stays gone back in Body", (await state(page)).agree && !boldMarks.str
   check("typing on the first line still retitles it", (await page.evaluate(() => String(window.richDev.handle.doc().title))) === "Long note!")
 }
 
+// Typing over a selection of bold text: the new text must come out plain
+// in automerge too. A mark whose every character is deleted still holds
+// its spot within the same change, so the fast path sets marks by hand.
+{
+  const page = await browser.newPage({ viewport: { width: 1000, height: 700 } })
+  await page.goto(url)
+  await page.waitForSelector("wg-content")
+  await page.click("wg-content")
+  await page.keyboard.press("Control+a")
+  await page.keyboard.press("Backspace")
+  await page.keyboard.type("Dear Sam, see you ")
+  await page.keyboard.press("ControlOrMeta+b")
+  await page.keyboard.type("Tuesday")
+  await page.keyboard.press("ControlOrMeta+b")
+  await page.keyboard.type(".")
+  await page.keyboard.press("ArrowLeft")
+  for (let i = 0; i < 7; i++) await page.keyboard.press("Shift+ArrowLeft")
+  await page.keyboard.type("Friday")
+  await page.waitForTimeout(250)
+  const { marked, agree } = await page.evaluate(() => {
+    const round = window.richDev.roundTrip()
+    return {
+      marked: window.richDev.spans().filter(span => span.type === "text" && span.marks && Object.keys(span.marks).length).map(span => span.value),
+      agree: round.live === round.rebuilt,
+    }
+  })
+  check("typing over bold text leaves no bold behind in automerge", marked.length === 0 && agree, marked.join(", "))
+  await page.close()
+}
+
 check("no page errors", errors.length === 0, errors.slice(0, 3).join(" / "))
 await browser.close()
 if (problems.length) {

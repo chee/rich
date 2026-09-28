@@ -169,6 +169,20 @@ export function automergeSyncPlugin({
           })
           return mixed ? null : marks
         }
+        // The names of the marks on every run of text in a range.
+        const markNames = (doc: Plot.Doc, from: number, to: number, blockName: string | null) => {
+          const names = new Set<string>()
+          doc.iterate(from, to, node => {
+            if (!node.is(Leaf.Text)) return
+            for (const name of Object.keys(amMarksFromMarks(adapter, node.marks, blockName))) names.add(name)
+          })
+          return names
+        }
+        // Marks on text these transactions delete. Text put in its place in
+        // the same change can take them on in automerge (a mark whose every
+        // character goes still holds the spot), whatever its neighbours say,
+        // so new text in this change sets those by hand.
+        const deleted = new Set<string>()
         const plan: Edit[][] = []
         for (const tr of transactions) {
           const start = tr.startState.doc
@@ -196,6 +210,7 @@ export function automergeSyncPlugin({
               if (new RegExp("[\\n\\u2028\\ufffc]").test(text)) return (simple = false)
               const block = tr.newDoc.resolve(fromB).parent.node.type
               const blockName = adapter.blockNameForNode(block, null)
+              if (to > from) for (const name of markNames(start, fromA, toA, blockName)) deleted.add(name)
               let marks: am.MarkSet = {}
               let explicit: string[] | null = null
               if (text) {
@@ -229,6 +244,8 @@ export function automergeSyncPlugin({
           // right to left, so each index still means what it did
           for (const edit of edits.reverse()) {
             am.splice(doc, path.slice(), edit.index, edit.del, edit.text)
+            if (edit.text && deleted.size)
+              edit.explicit = [...new Set([...(edit.explicit ?? Object.keys(edit.marks)), ...deleted])]
             if (!edit.explicit) continue
             // expand both, like every other mark in the note (see
             // SchemaAdapter.updateSpansConfig)
