@@ -464,6 +464,21 @@ await peerRestyles("only item", "unordered-list-item", ["unordered-list-item"])
 await page.waitForTimeout(200)
 check("a peer's nested item arrives nested", await same(), await page.$eval("wg-content", n => n.innerHTML.slice(0, 300)))
 
+// The find bar sits under the top bar, and the note makes room for it.
+await mount([block("heading", [], { level: 1 }), text("First line"), block("paragraph"), text("second")])
+await caretAt("second")
+await page.keyboard.press("ControlOrMeta+f")
+await page.waitForSelector(".rich-find")
+await page.waitForTimeout(150)
+const room = await page.evaluate(() => ({
+  bar: document.querySelector(".rich-find").getBoundingClientRect().bottom,
+  first: document.querySelector("wg-content h1").getBoundingClientRect().top,
+}))
+check("the find bar doesn't cover the first line", room.first >= room.bar, JSON.stringify(room))
+await page.keyboard.press("Escape")
+await page.waitForTimeout(150)
+check("and the room goes when it closes", await page.evaluate(() => getComputedStyle(document.querySelector(".rich-tool")).getPropertyValue("--rich-find-room") === ""))
+
 // --- Duplicate --------------------------------------------------------------
 
 const moreItems = async () => {

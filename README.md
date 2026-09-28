@@ -25,14 +25,26 @@ and it looks and behaves like lush's editor.
   block styles, each drawn in its own style with a tick on the current one —
   Title, Heading, Subheading, Body, Code; Bulleted, Numbered and To-do lists;
   Quote — and an indent/outdent pill. In a code block, a language picker.
-  Picking the style a block already has puts it back to Body. The link button
+  As in lush, a style goes on every line the selection touches, with the
+  style's own attrs (an indent doesn't survive it), in one undo; picking the
+  style a line already has puts it back to Body. The pill nests list items
+  line by line (so does Tab) and gives other lines lush's `indent`. The link button
   (and Cmd-K) opens lush's Link sheet: `example.com` becomes
   `https://example.com`, `me@x.org` becomes `mailto:me@x.org`. At phone width
   the popover is lush's bottom **Format** island instead.
 - **The paperclip**: Choose Photo…, Record Audio, Live Transcription, Attach
-  File…, Logline, Logline…, Table, Columns, HTML Block, Patchwork Doc….
-- **•••**: Duplicate (a new note with no shared history; only where there is
-  a repo to make it in), Copy Link, Find… and Find and Replace… (Cmd-F,
+  File…, Logline, Logline…, Table, Columns, HTML Block, Patchwork Doc…. What
+  they put in the note goes after the line the caret is in, with the caret
+  on a line of its own below it. Logline… is lush's logline sheet (when,
+  where, weather, details; double-click a logline to edit it), and an HTML
+  block opens its source beside what it draws.
+- **Tables and columns** have lush's **•••** at their top-trailing corner: Add
+  Row, Add Column, Remove Last Row, Remove Last Column and Header Row (a column
+  layout: Add Column, Remove Last Column). Tab walks the cells.
+- **•••**: Duplicate (a new note from `repo.create`, seeded from this one, with
+  no shared history; offered for notes, where there is a repo — a host whose
+  document is something else, like the site editor's posts, duplicates it its
+  own way), Copy Link, Find… and Find and Replace… (Cmd-F,
   Cmd-Opt-F, Cmd-G), Export as Markdown… and as HTML…, Move Checked to Bottom,
   Hide Checked Items, Delete Checked Items, the table verbs when the caret is
   in a table, Plugins….
@@ -71,8 +83,8 @@ The note is lush's: `content` is automerge rich text, `title` (and
 - Blocks: `paragraph` (`indent`), `heading` (`level` 1–3, `indent`),
   `code-block` (one marker **per line**, `language`), `unordered-list-item`,
   `ordered-list-item`, `todo-list-item` (`checked: true`, or
-  `state: "canceled" | "pending"`), `blockquote` (first line; the following
-  lines are `paragraph` with `parents: ["blockquote"]`), and the embeds
+  `state: "canceled" | "pending"`), `blockquote` (first line, `indent`; the
+  following lines are `paragraph` with `parents: ["blockquote"]`), and the embeds
   `embed` (`url`, `tool`), `context` (a logline), `html`, all with
   `parents: []`. Tables (`table`, `table-row`, `table-cell`,
   `table-header-cell`, cells holding blocks) and `columns`/`column` sit at
@@ -241,7 +253,15 @@ container, and treats a container's first textblock as implicit only when it is
 that container's *only* child. Without it, a table row of empty cells, a list
 item holding a column layout, or a blank first line in a column are lost on the
 way back — the implicit child is only materialised by content that follows the
-container's marker.
+container's marker. (A cell's or a column's first line with attrs of its own,
+an indent, gets a marker too.)
+
+Block styles and indents (`src/block-style.js`) are edits to the note's spans —
+the lines lush sees — read back into the editor as one change. That is how they
+restyle exactly the lines lush would, and why the editor always holds what a
+fresh load of the note would show. Changes from peers go in the same way: the
+diff compares closes by the node they close, so its slice always fits and goes
+in unfitted.
 
 A browser detail, since it cost an afternoon: **a `<button draggable="true">`
 never starts a native drag** — browsers don't drag form controls. The grip is a

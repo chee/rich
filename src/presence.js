@@ -214,7 +214,8 @@ export function presence(context) {
         this.stopped = false
         this.strip = document.createElement("div")
         this.strip.className = "rich-presence"
-        ;(element.querySelector(".rich-page") ?? element).append(this.strip)
+        // beside the top bar's ••• pill (or over the page without a bar)
+        ;(element.querySelector(".rich-topbar-faces") ?? element.querySelector(".rich-page") ?? element).append(this.strip)
 
         await loadSelf()
         if (this.stopped) return

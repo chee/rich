@@ -768,9 +768,10 @@
   user-select: none;
 }
 
-/* Presence: who else has this note open. The faces row floats over the top
-   right of the page; each remote caret is a coloured bar with its owner's
-   name riding on it, and their selection is the page tinted their colour. */
+/* Presence: who else has this note open. The faces row sits in the top bar
+   beside the ••• pill (over the page's top left without a bar); each remote
+   caret is a coloured bar with its owner's name riding on it, and their
+   selection is the page tinted their colour. */
 .rich-tool .rich-presence {
   position: absolute;
   top: 17px;
