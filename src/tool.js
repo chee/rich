@@ -1,5 +1,6 @@
 import * as am from "@automerge/automerge"
 import { InputRule, Wordgard } from "wordgard/editor"
+import { Command, insertText } from "wordgard/command"
 import { history } from "wordgard/history"
 import { Blockquote, BulletList, Heading, OrderedList } from "wordgard/types"
 import {
@@ -44,9 +45,8 @@ import "./rich.css"
 // to `###` for Title, Heading and Subheading, `>` for a quote (the to-do
 // brackets are in todo-list.js). The schema bundles' own versions of these
 // only fire on empty lines; these fire on a line with content after the
-// cursor too.
-// Inside a list or a quote they replace the block's style, as lush's do (see
-// triggers.js).
+// cursor too, and replace the line's style the way lush's do (see
+// triggers.js) — only their patterns are used.
 const convertOnPrefix = [
   lushTrigger(InputRule.textblockType(/^(#{1,3}) $/, match => Heading.of(match[1].text.length)), match => ({
     id: `h${match[1].text.length}`,
@@ -208,6 +208,29 @@ export default function RichTool(handle, element) {
           if (wg.state !== before && !wg.inputState?.composing) wg.flush()
         })
       }),
+
+      // Marks picked for the next typing (Aa → Bold with nothing selected)
+      // make wordgard measure the caret by putting a scratch element at the
+      // start of the line and taking it out again. When the browser's caret
+      // sits between elements rather than inside a text node — which is how
+      // wordgard places it after a caret is set from code, at the end of a
+      // line say — Chrome then aims the next keystroke at the start of the
+      // line, and the letter lands there without the marks. The editor's own
+      // caret is the right one, so typing with picked marks goes there.
+      GardState.prec.highest(
+        Wordgard.domEventHandler("beforeinput", (event, wg) => {
+          const selection = wg.state.selection
+          if (event.inputType !== "insertText" || !event.data || event.isComposing || wg.composing) return false
+          if (!selection.empty || !selection.marks) return false
+          event.preventDefault()
+          return Command.dispatch(wg, insertText, {
+            from: selection.head,
+            to: selection.head,
+            insert: event.data.replace(/\r\n?|\n/g, " "),
+            userEvent: "input.type",
+          })
+        }),
+      ),
 
       featureConfig.of(extensions()),
     ],

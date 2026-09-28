@@ -15,7 +15,7 @@
     "push": "vite build && pushwork sync",
     "register": "pw-modules add \"$MODULE_SETTINGS_DOC_URL\" \"$(pushwork url)\"",
     "dev:serve": "vite --config vite.dev.config.js",
-    "check": "node dev/check.mjs && node dev/table-check.mjs && node dev/media-check.mjs && node dev/topbar-check.mjs && node dev/list-check.mjs && node dev/convert-check.mjs && node dev/draft-check.mjs && node dev/embed-check.mjs && node dev/lush-check.mjs && node dev/typing-check.mjs && node dev/look-check.mjs"
+    "check": "node dev/check.mjs && node dev/table-check.mjs && node dev/media-check.mjs && node dev/topbar-check.mjs && node dev/list-check.mjs && node dev/convert-check.mjs && node dev/draft-check.mjs && node dev/embed-check.mjs && node dev/lush-check.mjs && node dev/typing-check.mjs && node dev/look-check.mjs && node dev/format-check.mjs"
   },
   "dependencies": {
     "@automerge/automerge": "^3.1",

@@ -7,7 +7,9 @@ import { Plot, Node, Leaf, Mark, Slice } from "wordgard/doc"
 // derive a minimal replacement range from a common-prefix/suffix diff.
 export type Atom =
   | { t: "open"; tag: Plot.Tag }
-  | { t: "close" }
+  // a close carries the tag it closes, so two documents only share a run
+  // of closes when they close the same nodes
+  | { t: "close"; tag: Plot.Tag }
   | { t: "leaf"; node: Node }
   | { t: "char"; ch: string; marks: Mark.Set }
 
@@ -24,7 +26,7 @@ export function atomsOf(doc: Plot.Doc): Atom[] {
     } else {
       atoms.push({ t: "open", tag: node.tag })
       for (const c of node.content) walk(c)
-      atoms.push({ t: "close" })
+      atoms.push({ t: "close", tag: node.tag })
     }
   }
   for (const c of doc.content) walk(c)
@@ -33,8 +35,7 @@ export function atomsOf(doc: Plot.Doc): Atom[] {
 
 function atomsEqual(a: Atom, b: Atom): boolean {
   if (a.t !== b.t) return false
-  if (a.t === "close") return true
-  if (a.t === "open" && b.t === "open") return a.tag.eq(b.tag)
+  if (a.t === "open" || a.t === "close") return a.tag.eq((b as typeof a).tag)
   if (a.t === "leaf" && b.t === "leaf") return a.node.eq(b.node)
   if (a.t === "char" && b.t === "char")
     return a.ch === b.ch && Mark.sameSet(a.marks, b.marks)
@@ -45,6 +46,13 @@ function atomsEqual(a: Atom, b: Atom): boolean {
 /// `newDoc`, by trimming the common prefix and suffix. Returns `null`
 /// when the documents are equal. Positions are wordgard document
 /// positions.
+///
+/// The replaced range is always well formed: the common prefix opens the
+/// same nodes in both documents, and since closes are compared by the node
+/// they close, the common suffix closes the same ones. So the slice fits
+/// where it goes as it is. (Compared without their nodes, a paragraph that
+/// became a list item matched its old close against the list's, and the
+/// slice needed fitting, which left an empty paragraph after the list.)
 export function diffDocs(
   oldDoc: Plot.Doc,
   newDoc: Plot.Doc,

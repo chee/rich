@@ -1,12 +1,13 @@
 // Table editing. `tables()` in tool.js brings the schema, the cell selection
 // and the correction/paste/drop handlers, but the row and column commands it
 // registers are menu items, and rich has no menu bar. These put the same
-// commands on the surfaces rich does have: the block menu, the format bar when
-// cells are selected, Tab between cells, and handles on the table itself.
+// commands where lush has them: a "•••" menu at a table's top-trailing corner
+// (and a column layout's), Tab between cells, and the top bar's ••• menu while
+// the caret is in a table.
 import { Command } from "wordgard/command"
 import { KeyBinding, Wordgard } from "wordgard/editor"
 import { GardState } from "wordgard/state"
-import { Table } from "wordgard/types"
+import { BlockHeaderCell, Paragraph, Table } from "wordgard/types"
 import {
   CellSelection,
   addColumn,
@@ -16,22 +17,13 @@ import {
   toggleHeaderCell,
 } from "wordgard/table"
 import { el, svg } from "./dom.js"
+import { Column, Columns } from "./adapter.js"
 
 // `Table` is a tag, not a type — comparing types rather than tags so a table
 // carrying marks still matches.
 const isTable = plot => plot.tag.type === Table.type
 
 export const tableAt = state => state.sel.head.matchingParent(isTable)
-
-// The table a block-level position points at, for the block menu, which opens
-// on the table as a whole rather than on a cell.
-export const tableAtPos = (state, pos) => {
-  try {
-    return state.doc.resolve(pos + 1).matchingParent(isTable)
-  } catch {
-    return null
-  }
-}
 
 export const inTable = state =>
   state.selection instanceof CellSelection || Boolean(tableAt(state))
@@ -86,99 +78,6 @@ export const TABLE_ACTIONS = [
   },
 ]
 
-// The format bar's table control: one button that drops down the actions,
-// shown only while the selection is in a table.
-export function tableMenu(wg) {
-  const button = el(
-    "button",
-    {
-      class: "rich-format-button rich-table-menu-button",
-      type: "button",
-      title: "Table",
-      onmousedown: event => {
-        event.preventDefault()
-        control.querySelector(".rich-table-menu") ? close() : open()
-      },
-    },
-    svg(TABLE_ICON),
-  )
-
-  const control = el("span", { class: "rich-table-control" }, button)
-
-  let close = () => {}
-
-  function open() {
-    const menu = el(
-      "div",
-      { class: "rich-table-menu" },
-      TABLE_ACTIONS.map(action =>
-        el(
-          "button",
-          {
-            class: action.danger ? "rich-table-menu-item danger" : "rich-table-menu-item",
-            type: "button",
-            onmousedown: event => {
-              event.preventDefault()
-              action.run(wg)
-              close()
-              wg.focus()
-            },
-          },
-          action.label,
-        ),
-      ),
-    )
-    const onOutside = event => {
-      if (!control.contains(event.target)) close()
-    }
-    const onKey = event => {
-      if (event.key !== "Escape") return
-      event.preventDefault()
-      close()
-      wg.focus()
-    }
-    close = () => {
-      menu.remove()
-      document.removeEventListener("mousedown", onOutside, true)
-      document.removeEventListener("keydown", onKey, true)
-      close = () => {}
-    }
-    control.append(menu)
-    document.addEventListener("mousedown", onOutside, true)
-    document.addEventListener("keydown", onKey, true)
-  }
-
-  return { control, hide: () => close() }
-}
-
-const TABLE_ICON = `<rect x="2" y="3" width="12" height="10" rx="1"/><path d="M2 6.5h12M2 10h12M6.5 6.5V13M10 6.5V13"/>`
-
-// The block menu opens on the table as a whole, so its verbs are table-level:
-// grow it at the end, or flip the header row. Editing a particular row or
-// column needs one selected, which the grips and the format bar do.
-export const TABLE_BLOCK_ACTIONS = [
-  {
-    id: "add-row",
-    label: "Add row",
-    run: (wg, table) => runAt(wg, lastCell(table), addRow, "after"),
-  },
-  {
-    id: "add-column",
-    label: "Add column",
-    run: (wg, table) => runAt(wg, lastCell(table), addColumn, "after"),
-  },
-  {
-    id: "header-row",
-    label: "Toggle header row",
-    run: (wg, table) => {
-      runAt(wg, cellRanges(table)[0].from + 2)
-      toggleHeaderRow(wg)
-    },
-  },
-]
-
-const lastCell = table => cellRanges(table).at(-1).from + 2
-
 // Lush's tables have a header row or none: header cells anywhere else are
 // lost when lush saves. So the header toggles for the whole first row.
 function toggleHeaderRow(wg) {
@@ -215,8 +114,7 @@ function step(direction) {
   }
 }
 
-// Selecting a whole row or column is what makes the format bar's table
-// buttons (and merge in particular) reachable.
+// Put the selection over a range of cells.
 function selectSpan(wg, from, to) {
   const selection = CellSelection.between(wg.state.doc, from, to)
   if (selection) wg.dispatch({ selection })
@@ -230,28 +128,96 @@ function rowSpan(table, index) {
   return { from: ranges[index * width].from, to: ranges[index * width + width - 1].to }
 }
 
-function columnSpan(table, index) {
-  const ranges = cellRanges(table)
-  const width = table.node.content[0].content.length
+const hasHeader = table => table.node.content[0]?.content.every(cell => cell.type === BlockHeaderCell.type) ?? false
+
+// Lush's table menu (TableInline.swift): grow or shrink the table at its end,
+// and the header row on or off.
+function tableItems(wg, table) {
   const rows = table.node.content.length
-  return { from: ranges[index].from, to: ranges[(rows - 1) * width + index].to }
+  const columns = table.node.content[0]?.content.length ?? 0
+  const ranges = cellRanges(table)
+  const inCell = index => ranges[index].from + 2
+  return [
+    { label: "Add Row", run: () => runAt(wg, inCell(ranges.length - 1), addRow, "after") },
+    { label: "Add Column", run: () => runAt(wg, inCell(ranges.length - 1), addColumn, "after") },
+    null,
+    { label: "Remove Last Row", disabled: rows < 2, run: () => runAt(wg, inCell(ranges.length - 1), deleteRow) },
+    { label: "Remove Last Column", disabled: columns < 2, run: () => runAt(wg, inCell(columns - 1), deleteColumn) },
+    null,
+    {
+      label: "Header Row",
+      checked: hasHeader(table),
+      run: () => {
+        runAt(wg, inCell(0))
+        toggleHeaderRow(wg)
+      },
+    },
+  ]
 }
 
-// How far outside a table the pointer still counts as on it, so the handles
-// drawn past its edges stay reachable.
-const REACH = 28
+// And the column layout's (ColumnsInline.swift).
+function columnsItems(wg, columns) {
+  const count = columns.node.content.length
+  return [
+    {
+      label: "Add Column",
+      run: () => {
+        const at = columns.end
+        wg.dispatch({
+          changes: { from: at, insert: [Column.create([Paragraph.create([])])] },
+          selection: { anchor: at + 2 },
+          userEvent: "columns.add",
+        })
+      },
+    },
+    {
+      label: "Remove Last Column",
+      disabled: count < 2,
+      run: () => {
+        const last = columns.node.content[count - 1]
+        wg.dispatch({ changes: { from: columns.end - last.length, to: columns.end }, userEvent: "columns.remove" })
+      },
+    },
+  ]
+}
 
-// Handles drawn over a hovered table: a grip per row and per column that
-// selects it, and a "+" past the last of each that grows the table.
-class TableHandles {
+// lush's `ellipsis.circle.fill`
+const MORE = `<circle cx="8" cy="8" r="7" fill="currentColor" stroke="none"/><circle class="rich-corner-dot" cx="4.9" cy="8" r="1" stroke="none"/><circle class="rich-corner-dot" cx="8" cy="8" r="1" stroke="none"/><circle class="rich-corner-dot" cx="11.1" cy="8" r="1" stroke="none"/>`
+const CHECK = `<path d="M3 8.5l3 3 7-7"/>`
+
+// How far outside a table the pointer still counts as on it.
+const REACH = 16
+
+// The "•••" at the top-trailing corner of the table or column layout the
+// pointer is over, or the caret is in.
+class CornerMenus {
   constructor(wg) {
     this.wg = wg
-    this.table = null
-    this.layer = el("div", { class: "rich-table-handles" })
-
-    this.onMouseMove = event => this.track(event)
-    this.onMouseLeave = () => this.hide()
-    this.onScroll = () => this.hide()
+    this.target = null
+    this.menu = null
+    this.layer = el("div", { class: "rich-corner-layer" })
+    this.button = el(
+      "button",
+      {
+        class: "rich-corner-button",
+        type: "button",
+        title: "More",
+        "aria-label": "More",
+        "aria-haspopup": "menu",
+        onmousedown: event => event.preventDefault(),
+        onclick: event => {
+          event.preventDefault()
+          this.menu ? this.closeMenu() : this.openMenu()
+        },
+      },
+      svg(MORE, 16),
+    )
+    this.onMouseMove = event => {
+      if (this.layer.contains(event.target)) return
+      this.show(this.targetNear(event) ?? this.caretTarget())
+    }
+    this.onMouseLeave = () => this.menu || this.show(this.caretTarget())
+    this.onScroll = () => this.menu || this.place()
   }
 
   connect(wg) {
@@ -262,6 +228,7 @@ class TableHandles {
   }
 
   disconnect(wg) {
+    this.closeMenu()
     wg.dom.removeEventListener("mousemove", this.onMouseMove)
     wg.dom.removeEventListener("mouseleave", this.onMouseLeave)
     wg.scrollDOM.removeEventListener("scroll", this.onScroll)
@@ -272,141 +239,132 @@ class TableHandles {
     this.disconnect(wg)
   }
 
-  // Growing the table moves everything the handles were measured against, so
-  // they are redrawn rather than dropped — otherwise clicking "+" twice means
-  // hovering the table again in between.
   update(update) {
-    if (!update.docChanged) return
-    const element = this.table
-    if (!element?.isConnected) return this.hide()
-    this.wg.scheduleDOMRead(() => element.isConnected && this.draw(element))
+    if (!update.docChanged && !update.selectionSet) return
+    if (this.menu && update.docChanged) this.closeMenu()
+    this.wg.scheduleDOMRead(() => {
+      const target = this.target?.isConnected ? this.target : this.caretTarget()
+      this.show(target)
+    })
   }
 
-  hide() {
-    this.layer.textContent = ""
-    this.table = null
+  // The table or column layout element the caret is in.
+  caretTarget() {
+    const { state } = this.wg
+    const found = state.sel.head.matchingParent(plot => plot.tag.type === Table.type || plot.tag.type === Columns.type)
+    if (!found) return null
+    try {
+      return this.wg.nodeDOM(found.before)
+    } catch {
+      return null
+    }
   }
 
-  track(event) {
-    if (this.layer.contains(event.target)) return
-    const element = this.tableNear(event)
-    if (!element) return this.hide()
-    this.draw(element)
-  }
-
-  // The "+" buttons sit outside the table, so the pointer has to be able to
-  // leave the table to reach them without the handles vanishing on the way.
-  tableNear(event) {
-    const under = event.target.closest?.("table")
+  targetNear(event) {
+    const under = event.target.closest?.("table, .rich-columns")
     if (under && this.wg.contentDOM.contains(under)) return under
-    for (const table of this.wg.contentDOM.querySelectorAll("table")) {
-      const box = table.getBoundingClientRect()
+    for (const element of this.wg.contentDOM.querySelectorAll("table, .rich-columns")) {
+      const box = element.getBoundingClientRect()
       if (
         event.clientX >= box.left - REACH &&
         event.clientX <= box.right + REACH &&
         event.clientY >= box.top - REACH &&
         event.clientY <= box.bottom + REACH
       ) {
-        return table
+        return element
       }
     }
     return null
   }
 
-  // The table's position in the document. `nodeFromDOM` throws for an element
-  // the editor has replaced since, which a stale hover can hand us.
-  tablePos(element) {
+  // Where the element is in the document, as a resolved table or columns.
+  plotOf(element) {
     try {
       const found = this.wg.nodeFromDOM(element)
       if (!found) return null
-      const at = this.wg.state.doc.resolve(found.pos + 1)
-      return at.matchingParent(isTable)
+      return this.wg.state.doc.resolve(found.pos + 1).matchingParent(plot => plot.tag.type === Table.type || plot.tag.type === Columns.type)
     } catch {
       return null
     }
   }
 
-  draw(element) {
-    const table = this.tablePos(element)
-    if (!table) return this.hide()
-    this.layer.textContent = ""
-    this.table = element
+  show(element) {
+    if (element === this.target && this.button.isConnected) return this.place()
+    this.closeMenu()
+    this.target = element ?? null
+    if (!element) return this.button.remove()
+    this.layer.append(this.button)
+    this.place()
+  }
 
+  place() {
+    if (!this.target?.isConnected) return
     const host = this.wg.dom.getBoundingClientRect()
-    const box = element.getBoundingClientRect()
-    const rows = [...element.rows]
-    const cells = [...(rows[0]?.cells ?? [])]
+    const box = this.target.getBoundingClientRect()
+    this.button.style.top = `${box.top - host.top + 3}px`
+    this.button.style.left = `${box.right - host.left - 3 - 20}px`
+  }
 
-    const grip = (className, rect, onclick) =>
-      this.layer.append(
-        el("div", {
-          class: `rich-table-grip ${className}`,
-          role: "button",
-          tabindex: "0",
-          title: "Select",
-          style: `top:${rect.top - host.top}px;left:${rect.left - host.left}px;width:${rect.width}px;height:${rect.height}px`,
-          onmousedown: event => {
-            event.preventDefault()
-            onclick()
-          },
-        }),
-      )
-
-    const plus = (className, style, title, onclick) => {
-      const button = el("button", {
-        class: `rich-table-plus ${className}`,
-        type: "button",
-        title,
-        style,
-        onmousedown: event => {
-          event.preventDefault()
-          onclick()
-          this.wg.focus()
-        },
-      })
-      button.append(svg(`<path d="M8 3v10M3 8h10"/>`, 12))
-      this.layer.append(button)
+  openMenu() {
+    const plot = this.target && this.plotOf(this.target)
+    if (!plot) return
+    const items = plot.node.type === Table.type ? tableItems(this.wg, plot) : columnsItems(this.wg, plot)
+    const body = el(
+      "div",
+      { class: "rich-popover-body", role: "menu" },
+      ...items.map(item =>
+        item
+          ? el(
+              "button",
+              {
+                class: "rich-menu-item",
+                type: "button",
+                role: item.checked == null ? "menuitem" : "menuitemcheckbox",
+                "aria-checked": item.checked == null ? null : String(item.checked),
+                disabled: item.disabled,
+                onmousedown: event => event.preventDefault(),
+                onclick: event => {
+                  event.preventDefault()
+                  this.closeMenu()
+                  item.run()
+                  this.wg.focus()
+                },
+              },
+              el("span", { class: "rich-menu-glyph" }, item.checked ? svg(CHECK, 12) : null),
+              el("span", { class: "rich-menu-label" }, item.label),
+            )
+          : el("div", { class: "rich-popover-divider", role: "separator" }),
+      ),
+    )
+    this.menu = el("div", { class: "rich-popover rich-corner-menu" }, body)
+    this.layer.append(this.menu)
+    const host = this.wg.dom.getBoundingClientRect()
+    const button = this.button.getBoundingClientRect()
+    const width = this.menu.offsetWidth
+    this.menu.style.top = `${button.bottom - host.top + 4}px`
+    this.menu.style.left = `${Math.max(4, button.right - host.left - width)}px`
+    this.button.classList.add("open")
+    this.onOutside = event => {
+      if (!this.menu?.contains(event.target) && !this.button.contains(event.target)) this.closeMenu()
     }
+    this.onKey = event => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      event.stopPropagation()
+      this.closeMenu()
+      this.wg.focus()
+    }
+    document.addEventListener("mousedown", this.onOutside, true)
+    document.addEventListener("keydown", this.onKey, true)
+  }
 
-    // A grip is inset by a pixel at each end so a run of them reads as one per
-    // row or column rather than as a single bar down the side.
-    cells.forEach((cell, index) => {
-      const rect = cell.getBoundingClientRect()
-      grip(
-        "column",
-        { top: box.top - 7, left: rect.left + 1, width: rect.width - 2, height: 5 },
-        () => {
-          const span = columnSpan(table, index)
-          selectSpan(this.wg, span.from, span.to)
-        },
-      )
-    })
-
-    rows.forEach((row, index) => {
-      const rect = row.getBoundingClientRect()
-      grip(
-        "row",
-        { top: rect.top + 1, left: box.left - 7, width: 5, height: rect.height - 2 },
-        () => {
-          const span = rowSpan(table, index)
-          selectSpan(this.wg, span.from, span.to)
-        },
-      )
-    })
-
-    const last = cellRanges(table)
-    plus(
-      "column",
-      `top:${box.top - host.top}px;left:${box.right - host.left + 4}px;height:${box.height}px`,
-      "Add column",
-      () => runAt(this.wg, last[last.length - 1].from + 2, addColumn, "after"),
-    )
-    plus(
-      "row",
-      `top:${box.bottom - host.top + 4}px;left:${box.left - host.left}px;width:${box.width}px`,
-      "Add row",
-      () => runAt(this.wg, last[last.length - 1].from + 2, addRow, "after"),
-    )
+  closeMenu() {
+    if (!this.menu) return
+    this.menu.remove()
+    this.menu = null
+    this.button.classList.remove("open")
+    document.removeEventListener("mousedown", this.onOutside, true)
+    document.removeEventListener("keydown", this.onKey, true)
   }
 }
 
@@ -414,6 +372,6 @@ export function tableEditing() {
   return [
     GardState.prec.high(KeyBinding.of({ key: "Tab", run: step(1) }).extension),
     GardState.prec.high(KeyBinding.of({ key: "Shift-Tab", run: step(-1) }).extension),
-    Wordgard.Plugin.fromClass(TableHandles).extension,
+    Wordgard.Plugin.fromClass(CornerMenus).extension,
   ]
 }

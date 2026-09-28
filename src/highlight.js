@@ -3,6 +3,7 @@
 // and dark schemes in rich.css. The document stores the name — "pink" — so the
 // look belongs to the theme, not the note.
 import { Mark } from "wordgard/doc"
+import { markAt, valuedMarkChanges } from "./marks.js"
 
 export const HIGHLIGHTS = ["pink", "yellow", "sky", "sea", "mint"]
 
@@ -25,23 +26,9 @@ export const highlightParsers = {
   fromWordgard: value => String(value),
 }
 
-export const highlightAt = state => {
-  const { from, to } = state.selection
-  const marks = state.doc.resolve(from).marks(from === to ? undefined : state.doc.resolve(to))
-  return Highlight.isInSet(marks)?.value ?? null
-}
+// The highlight the swatches show: the caret's (one just picked included), or
+// the first character's of a selection, as lush reads it.
+export const highlightAt = state => markAt(state, Highlight)?.value ?? null
 
-// Set or clear the highlight over a range. Clearing needs the marks that are
-// actually there, since a parameterised mark is removed by value.
-export function highlightChanges(doc, name, from, to) {
-  const changes = []
-  const seen = new Set()
-  doc.iterate(from, to, node => {
-    const mark = Highlight.isInSet(node.marks)
-    if (!mark || seen.has(mark.value)) return
-    seen.add(mark.value)
-    changes.push({ from, to, remove: mark })
-  })
-  if (name) changes.push({ from, to, add: Highlight.of(name) })
-  return changes
-}
+// Set or clear the highlight over a range.
+export const highlightChanges = (doc, name, from, to) => valuedMarkChanges(doc, Highlight, name, from, to)

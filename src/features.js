@@ -22,6 +22,7 @@ import { listIndent } from "./lists.js"
 import { getDndPayload, hasDocumentDrag } from "./dnd.js"
 import { Embed, EmbedTool } from "./adapter.js"
 import { insertBlocks } from "./insert.js"
+import { valuedMarkChanges } from "./marks.js"
 import { loadedPlugins } from "./registry.js"
 import { presence } from "./presence.js"
 
@@ -75,11 +76,7 @@ function embedExtensions() {
       if (!found) return
       const node = wg.state.doc.resolve(found.pos).nodeAfter
       if (!node) return
-      const toolId = event.detail?.toolId
-      const existing = EmbedTool.isInSet(node.marks)
-      const changes = []
-      if (existing) changes.push({ from: found.pos, to: found.pos + 1, remove: existing })
-      if (toolId) changes.push({ from: found.pos, to: found.pos + 1, add: EmbedTool.of(toolId) })
+      const changes = valuedMarkChanges(wg.state.doc, EmbedTool, event.detail?.toolId, found.pos, found.pos + 1)
       if (changes.length) wg.dispatch({ changes, userEvent: "embed.tool" })
     }
     const listen = on => {

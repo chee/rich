@@ -4,9 +4,15 @@
 // save. The editor drops them too, as soon as a line becomes a heading or a
 // code block, so what it shows is what a fresh editor on the same note shows,
 // and turning the line back into Body doesn't bring them back.
+//
+// The same goes for an indent on a list item's or a quote's first line: that
+// line is the list item's or the quote's own marker, and a list item nests
+// rather than indents, so an indent there is never written (a quote's indent
+// rides on the quote itself).
 import { Leaf } from "wordgard/doc"
 import { Transaction } from "wordgard/state"
-import { Code, Strong } from "wordgard/types"
+import { Blockquote, Code, ListItem, Paragraph, Strong } from "wordgard/types"
+import { Indent } from "./adapter.js"
 
 const excludedIn = parent => {
   const name = parent?.type?.name
@@ -38,7 +44,19 @@ export const dropExcludedMarks = Transaction.appender.of((trs, state) => {
     to = Math.max(from, Math.min(to, doc.contentLength))
     from = doc.resolve(from).textblockParent?.before ?? from
     to = doc.resolve(to).textblockParent?.after ?? to
-    doc.iterate(from, to, (node, pos, parent) => {
+    doc.iterate(from, to, (node, pos, parent, index) => {
+      if (
+        node.type === Paragraph.type &&
+        index === 0 &&
+        (parent?.type === ListItem.type || parent?.type === Blockquote.type) &&
+        !seen.has(pos)
+      ) {
+        const indent = Indent.isInSet(node.tag.marks)
+        if (indent) {
+          seen.add(pos)
+          changes.push({ from: pos, remove: indent })
+        }
+      }
       if (!node.is(Leaf.Text) || seen.has(pos)) return
       const mark = excludedIn(parent)
       if (!mark || !mark.isInSet(node.marks)) return

@@ -106,12 +106,14 @@ export const Font = Mark.Type.define("Font", {
 })
 
 // How far a block that isn't a list item is indented: lush's `indent` attr,
-// 20pt a level. Lists nest instead.
+// 20pt a level. Lists nest instead. A quote's first line is the quote's own
+// marker, so its indent rides on the quote. A new style starts from none, as
+// lush's does.
 export const Indent = Mark.Type.define("Indent", {
-  target: [Paragraph, Heading, CodeBlock],
+  target: [Paragraph, Heading, CodeBlock, Blockquote],
   validate: "number",
   keepOnSplit: true,
-  keepOnTypeChange: true,
+  keepOnTypeChange: false,
   shape: { attribute: "data-indent", value: level => String(level) },
 })
 
@@ -201,7 +203,15 @@ export const richAdapter = new SchemaAdapter({
         fromWordgard: node => writeIndent(node, { level: node.tag.param }),
       },
     },
-    { node: Blockquote, block: "blockquote" },
+    {
+      node: Blockquote,
+      block: "blockquote",
+      owns: ["indent"],
+      attrs: {
+        fromAutomerge: block => ({ marks: withMark(Mark.none, readIndent(block)) }),
+        fromWordgard: node => writeIndent(node),
+      },
+    },
     {
       node: CodeBlock,
       block: "code-block",

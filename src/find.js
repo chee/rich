@@ -225,11 +225,26 @@ class FindBar {
     this.replaceRow.hidden = !on
     this.toggle.setAttribute("aria-expanded", String(on))
     this.toggle.classList.toggle("open", on)
+    this.makeRoom()
+  }
+
+  // The bar sits under the top bar, as lush's does, so the note moves down
+  // to make room for it rather than having its first lines covered.
+  makeRoom() {
+    const open = this.dom.isConnected
+    if (open) this.element.style.setProperty("--rich-find-room", `${this.dom.offsetHeight + 4}px`)
+    else this.element.style.removeProperty("--rich-find-room")
   }
 
   sync(find) {
-    if (find.open && !this.dom.isConnected) this.element.append(this.dom)
-    if (!find.open && this.dom.isConnected) this.dom.remove()
+    if (find.open && !this.dom.isConnected) {
+      this.element.append(this.dom)
+      this.makeRoom()
+    }
+    if (!find.open && this.dom.isConnected) {
+      this.dom.remove()
+      this.makeRoom()
+    }
     if (!find.open) return
     this.count.textContent = find.query ? `${find.matches.length ? find.current + 1 : 0}/${find.matches.length}` : ""
     this.clear.hidden = !find.query
@@ -276,6 +291,7 @@ export function findInNote(context) {
       },
       remove() {
         bar.dom.remove()
+        bar.makeRoom()
       },
     }
   })

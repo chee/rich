@@ -476,6 +476,10 @@ await foreign.screenshot({
   await keys.keyboard.press("ControlOrMeta+Alt+h")
   await keys.waitForTimeout(400)
   check("cmd-opt-H inserts an HTML block", (await keys.$$("rich-html")).length === 1)
+  check("and opens its source, as lush does", await keys.isVisible(".rich-html-sheet textarea"))
+  await keys.keyboard.press("Escape")
+  await keys.waitForTimeout(150)
+  check("which Escape closes", (await keys.$$(".rich-html-sheet")).length === 0)
   check(
     "it renders in a sandboxed frame",
     await keys.evaluate(() => {
@@ -485,9 +489,9 @@ await foreign.screenshot({
   )
   await keys.evaluate(() => document.querySelector("rich-html").shadowRoot.querySelector("button").click())
   await keys.waitForTimeout(250)
-  check("the pencil opens the source", await keys.isVisible(".rich-html-dialog"))
-  await keys.fill(".rich-html-dialog textarea", "<h1>hi</h1>")
-  await keys.click(".rich-html-dialog button[type=submit]")
+  check("the pencil opens the source", await keys.isVisible(".rich-html-sheet"))
+  await keys.fill(".rich-html-sheet textarea", "<h1>hi</h1>")
+  await keys.click(".rich-html-sheet button[type=submit]")
   await keys.waitForTimeout(300)
   check(
     "editing rewrites the block",

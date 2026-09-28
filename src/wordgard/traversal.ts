@@ -260,6 +260,10 @@ function isRenderOnlyTextblock(
   if (adapter.mappingForNode(parent.type) == null) return false
   const def = adapter.schema.defaultContentTag(parent.type)
   if (def == null || def.type !== node.type) return false
+  // A cell's or a column's first paragraph with attrs of its own (an indent)
+  // needs a marker to hold them. (A list item's or a quote's first line is
+  // the container's own marker, which holds what that line has.)
+  if (!node.isLeaf && CELL_BLOCKS.concat("column").includes(adapter.blockNameForNode(parent.type, null) ?? "") && hasOwnAttrs(adapter, node as Plot)) return false
   if (node.content.length > 0) return true
   // Only when it is the container's *only* child. The implicit child is
   // materialised on the way back by the content that follows the container's
@@ -268,6 +272,13 @@ function isRenderOnlyTextblock(
   // lost.
   if (parent.content.length !== 1) return false
   return true
+}
+
+// Whether a block has attrs a marker would carry.
+function hasOwnAttrs(adapter: SchemaAdapter, node: Plot): boolean {
+  if (BlockExtras.isInSet(node.marks)) return true
+  const attrs = adapter.mappingForNode(node.type)?.attrs?.fromWordgard(node) ?? {}
+  return Object.values(attrs).some(value => value !== undefined)
 }
 
 // A mapped block container always emits its own marker: that marker is what

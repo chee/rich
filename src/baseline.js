@@ -1,38 +1,34 @@
 // Superscript and subscript are one axis, not two marks: text sits on one
 // baseline. Turning either on takes the other off — which is also what the
-// Swift app does, so a run never arrives there wearing both.
+// Swift app does (`toggleBaseline`), so a run never arrives there wearing
+// both.
 import { Command, toggleMark } from "wordgard/command"
 import { Subscript, Superscript } from "wordgard/types"
+import { markAt } from "./marks.js"
 
 const other = mark => (mark === Superscript ? Subscript : Superscript)
 
-// Read what is actually inside the selection: the marks AT a position come
-// from the text before it, so a selection sitting exactly on a marked run has
-// none at either end.
-export const baselineAt = (state, mark) => {
-  const { from, to } = state.selection
-  if (from === to) return mark.isInSet(state.doc.resolve(from).marks()) != null
-  let found = false
-  state.doc.iterate(from, to, node => {
-    found ||= mark.isInSet(node.marks) != null
-  })
-  return found
-}
+// What the buttons show and the toggle reads, as lush reads it: with a caret,
+// what the next character typed will wear (a baseline just picked in the
+// popover included); with a selection, what its first character wears.
+export const baselineAt = (state, mark) => markAt(state, mark) != null
 
 export function toggleBaseline(wg, mark) {
   const state = wg.state
-  if (baselineAt(state, other(mark))) {
-    if (state.selection.empty) {
-      Command.dispatch(wg, toggleMark, other(mark))
-    } else {
-      wg.dispatch({
-        changes: state.selection.ranges.map(range => ({
-          from: range.from,
-          to: range.to,
-          remove: other(mark),
-        })),
-      })
-    }
+  if (state.readOnly) return false
+  const on = !baselineAt(state, mark)
+  if (state.selection.empty) {
+    // only the marks the next typing wears change
+    if (on && baselineAt(state, other(mark))) Command.dispatch(wg, toggleMark, other(mark))
+    return Command.dispatch(wg, toggleMark, mark)
   }
-  return Command.dispatch(wg, toggleMark, mark)
+  // One change, so one undo takes it back. Turning one on clears the other
+  // over the whole selection, whatever its first character wears.
+  const changes = []
+  for (const { from, to } of state.selection.ranges) {
+    if (on) changes.push({ from, to, remove: other(mark) }, { from, to, add: mark })
+    else changes.push({ from, to, remove: mark })
+  }
+  wg.dispatch({ changes, userEvent: on ? "mark.add" : "mark.remove" })
+  return true
 }

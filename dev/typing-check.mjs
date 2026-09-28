@@ -130,6 +130,54 @@ await restyle("bb", "h1")
 const boldMarks = await page.evaluate(() => window.richDev.spans().find(span => span.type === "text" && span.value === "bb")?.marks ?? {})
 check("and stays gone back in Body", (await state(page)).agree && !boldMarks.strong, JSON.stringify(boldMarks))
 
+// On a long note a keystroke writes a splice and the title, not a pass over
+// every line: well under what reading the whole note back costs.
+{
+  const long = [block("heading", [], { level: 1 }), text("Long note")]
+  for (let i = 0; i < 3000; i++) long.push(block("paragraph"), text(`Paragraph number ${i} with some text in it to make it longer.`))
+  await mount(long)
+  await page.waitForTimeout(300)
+  const whole = await page.evaluate(() => {
+    const { handle, editor, am } = window.richDev
+    window.writes = []
+    const change = handle.change.bind(handle)
+    handle.change = (fn, options) => {
+      const start = performance.now()
+      const result = change(fn, options)
+      window.writes.push(performance.now() - start)
+      return result
+    }
+    let at = null
+    editor.state.doc.iterate(0, editor.state.doc.contentLength, (node, pos) => {
+      if (at == null && node.isText && node.param.includes("number 1500 ")) at = pos + node.param.length
+    })
+    editor.dispatch({ selection: { anchor: at } })
+    editor.focus()
+    const start = performance.now()
+    am.spans(handle.doc(), ["content"])
+    return performance.now() - start
+  })
+  for (const kind of ["plain", "bold"]) {
+    if (kind === "bold") await page.keyboard.press("ControlOrMeta+b")
+    await page.evaluate(() => (window.writes = []))
+    await page.keyboard.type("abcdefghij", { delay: 60 })
+    await page.waitForTimeout(300)
+    const writes = (await page.evaluate(() => window.writes)).sort((a, b) => a - b)
+    const median = writes[Math.floor(writes.length / 2)] ?? Infinity
+    check(`${kind} typing on a 3000-line note writes fast`, median < Math.max(40, whole / 3), `median ${median.toFixed(1)}ms a keystroke, reading the note back ${whole.toFixed(1)}ms`)
+  }
+  const { title, agree } = await page.evaluate(() => ({ title: String(window.richDev.handle.doc().title), agree: (r => r.live === r.rebuilt)(window.richDev.roundTrip()) }))
+  check("and keeps the title and the note", title === "Long note" && agree, title)
+  await page.evaluate(() => {
+    const { editor } = window.richDev
+    editor.dispatch({ selection: { anchor: 1 + "Long note".length }, scrollIntoView: true })
+    editor.focus()
+  })
+  await page.keyboard.type("!", { delay: 30 })
+  await page.waitForTimeout(200)
+  check("typing on the first line still retitles it", (await page.evaluate(() => String(window.richDev.handle.doc().title))) === "Long note!")
+}
+
 check("no page errors", errors.length === 0, errors.slice(0, 3).join(" / "))
 await browser.close()
 if (problems.length) {

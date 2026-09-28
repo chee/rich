@@ -61,12 +61,14 @@ export const todoParsers = {
   },
 }
 
-// The changes that put the item at `pos` into `state`.
+// The changes that put the item at `pos` into `state`. An add replaces the
+// other state there was, and one the item already has stays (a remove and an
+// add of the same mark in one change would take it off).
 export function todoStateChanges(tag, pos, state) {
   const changes = []
-  if (isChecked(tag)) changes.push({ from: pos, remove: Checked })
   const current = TodoState.isInSet(tag.marks)
-  if (current) changes.push({ from: pos, remove: current })
+  if (isChecked(tag) && state !== "checked") changes.push({ from: pos, remove: Checked })
+  if (current && !TODO_STATES.includes(state)) changes.push({ from: pos, remove: current })
   if (state === "checked") changes.push({ from: pos, add: Checked })
   else if (TODO_STATES.includes(state)) changes.push({ from: pos, add: TodoState.of(state) })
   return changes

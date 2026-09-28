@@ -101,10 +101,11 @@ await page.click("wg-content > ul > li:nth-child(1) > p")
 await page.keyboard.press("Tab")
 await page.waitForTimeout(150)
 // Lush nests any item, the first one too: it goes into a list inside an item
-// with no line of its own.
+// with no line of its own. And only that line moves, as in lush: the item
+// that was nested under it stays at its depth, now beside it.
 check(
   "Tab nests the first item, as in lush",
-  (await shape()) === "h1[title]ul[li[ul[li[p[one]ul[li[p[two!]]]]]]li[p[three]]]",
+  (await shape()) === "h1[title]ul[li[ul[li[p[one]]li[p[two!]]]]li[p[three]]]",
   await shape(),
 )
 const firstTrip = await page.evaluate(() => window.richDev.roundTrip())
@@ -114,7 +115,7 @@ const firstSpans = (await page.evaluate(() => window.richDev.spans()))
   .map(span => `${span.value.type}(${span.value.parents.length})`)
 check(
   "and writes no empty item above it",
-  firstSpans.join(" ") === "heading(0) unordered-list-item(1) unordered-list-item(2) unordered-list-item(0)",
+  firstSpans.join(" ") === "heading(0) unordered-list-item(1) unordered-list-item(1) unordered-list-item(0)",
   firstSpans.join(" "),
 )
 await page.keyboard.press("Shift+Tab")

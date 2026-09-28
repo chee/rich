@@ -50,57 +50,73 @@ const grown = await shape()
 check("tab at the last cell adds a row", grown.length === before + 1, JSON.stringify(grown))
 await shot("table-tab")
 
-// Handles appear on hover.
+// Lush's "•••" at the table's top-trailing corner: on hover, and while the
+// caret is in the table.
 const box = await page.locator("wg-content table").boundingBox()
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
 await page.waitForTimeout(150)
-const grips = await page.$$eval(".rich-table-grip", n => n.length)
-const pluses = await page.$$eval(".rich-table-plus", n => n.length)
-check("row and column grips drawn", grips === 3 + grown.length, `${grips} grips`)
-check("two + buttons drawn", pluses === 2, `${pluses}`)
-await shot("table-handles")
-
-// The + buttons sit outside the table, so moving the pointer off the table to
-// reach them must not take them away.
-const plusBox = await page.locator(".rich-table-plus.column").boundingBox()
-await page.mouse.move(plusBox.x + plusBox.width / 2, plusBox.y + plusBox.height / 2)
-await page.waitForTimeout(200)
+check("no row or column grips, and no + buttons", (await page.$$(".rich-table-grip, .rich-table-plus")).length === 0)
+const corner = await page.locator(".rich-corner-button").boundingBox()
 check(
-  "the + survives the pointer leaving the table",
-  (await page.$$(".rich-table-plus")).length === 2,
+  "a ••• at the table's top-trailing corner",
+  corner && Math.abs(corner.x + corner.width - (box.x + box.width - 3)) <= 2 && Math.abs(corner.y - (box.y + 3)) <= 2,
+  JSON.stringify({ corner, box }),
 )
+await shot("table-handles")
+const cornerItems = async () => {
+  await page.click(".rich-corner-button")
+  await page.waitForSelector(".rich-corner-menu")
+  return page.$$eval(".rich-corner-menu .rich-popover-body > *", nodes =>
+    nodes.map(node => (node.classList.contains("rich-popover-divider") ? "—" : `${node.textContent}${node.getAttribute("aria-checked") === "true" ? " ✓" : ""}`)),
+  )
+}
+const menu = await cornerItems()
+check(
+  "its menu is lush's",
+  menu.join(" | ") === "Add Row | Add Column | — | Remove Last Row | Remove Last Column | — | Header Row ✓",
+  menu.join(" | "),
+)
+await page.waitForTimeout(250)
+await shot("table-corner-menu")
 
-// The + past the last column grows the table sideways.
+// Add Column grows the table sideways.
 const widthBefore = (await shape())[0].length / 2
-await page.mouse.down()
-await page.mouse.up()
+await page.click(".rich-corner-menu .rich-menu-item:has-text('Add Column')")
 await page.waitForTimeout(150)
 const widened = await shape()
-check("+ adds a column", widened[0].length / 2 === widthBefore + 1, JSON.stringify(widened))
+check("Add Column adds a column", widened[0].length / 2 === widthBefore + 1, JSON.stringify(widened))
 
-// And the handles are still there afterwards, so it can be clicked again.
-check(
-  "the handles are redrawn after the table grows",
-  (await page.$$(".rich-table-plus")).length === 2,
-)
-
-// The + past the last row grows it downwards.
+// Add Row grows it downwards, and the ••• is still there to do it again.
 const rowsBefore = widened.length
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
 await page.waitForTimeout(150)
-await page.click(".rich-table-plus.row")
+await cornerItems()
+await page.click(".rich-corner-menu .rich-menu-item:has-text('Add Row')")
 await page.waitForTimeout(150)
-check("+ adds a row", (await shape()).length === rowsBefore + 1, JSON.stringify(await shape()))
+check("Add Row adds a row", (await shape()).length === rowsBefore + 1, JSON.stringify(await shape()))
 await shot("table-grown")
 
-// A column grip selects the column; the ••• menu then offers the table verbs.
-await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+await cornerItems()
+await page.click(".rich-corner-menu .rich-menu-item:has-text('Remove Last Row')")
 await page.waitForTimeout(150)
-await page.click(".rich-table-grip.column")
+check("Remove Last Row", (await shape()).length === rowsBefore, JSON.stringify(await shape()))
+await cornerItems()
+await page.click(".rich-corner-menu .rich-menu-item:has-text('Remove Last Column')")
 await page.waitForTimeout(150)
-const selected = await page.$$eval(".wg-selected-cell", n => n.length)
-check("column grip selects the column", selected > 1, `${selected} cells`)
+check("Remove Last Column", (await shape())[0].length / 2 === widthBefore, JSON.stringify(await shape()))
+await cornerItems()
+await page.click(".rich-corner-menu .rich-menu-item:has-text('Header Row')")
+await page.waitForTimeout(150)
+check("Header Row turns the header off", !(await shape())[0].includes("th"), JSON.stringify(await shape()))
+await cornerItems()
+await page.click(".rich-corner-menu .rich-menu-item:has-text('Header Row')")
+await page.waitForTimeout(150)
+check("and on", (await shape())[0].startsWith("th"), JSON.stringify(await shape()))
 
+// With the caret in a table, the top bar's ••• menu offers the verbs for the
+// row and column it is in.
+await page.click("wg-content table td >> nth=1")
+await page.waitForTimeout(150)
 await page.click(".rich-more")
 await page.waitForSelector(".rich-note-menu")
 const items = await page.$$eval(".rich-note-menu .rich-menu-label", n => n.map(b => b.textContent))

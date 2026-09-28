@@ -74,7 +74,8 @@
    wordgard measures the cursor of an empty block from the content box's own
    origin and lands in the wrong place when that box is offset. */
 .rich-tool .rich-page wg-content {
-  padding: calc(var(--rich-bar) + 16px) max(var(--rich-gutter), calc((100% - var(--rich-measure)) / 2)) 40vh;
+  /* the find bar, while it is open, takes room under the top bar */
+  padding: calc(var(--rich-bar) + var(--rich-find-room, 0px) + 16px) max(var(--rich-gutter), calc((100% - var(--rich-measure)) / 2)) 40vh;
   font-size: var(--rich-size);
   line-height: var(--rich-leading);
   -webkit-font-smoothing: antialiased;
@@ -110,6 +111,12 @@
 /* Jost's bold, as lush draws it */
 .rich-tool .rich-page wg-content strong {
   font-weight: 600;
+}
+
+/* Headings are bold already: a strong mark inside one changes nothing, as in
+   lush (which doesn't keep it). */
+.rich-tool .rich-page wg-content :is(h1, h2, h3, h4, h5, h6) strong {
+  font-weight: inherit;
 }
 
 /* A quote is a card: lush's cream (a whisper of white in the dark) with a
@@ -603,25 +610,27 @@
 /* Embedded documents draw themselves — see embed-element.js, which renders
    into a shadow root so the editor can't wipe its chrome. */
 
-/* Tables. */
+/* Tables, as lush draws them (TableInline.swift): hairline cells inside a
+   1pt border, the header row filled rather than bold. */
 .rich-tool .rich-page wg-content table {
   border-collapse: collapse;
   width: 100%;
   margin: 0.75rem 0;
   font-size: 0.95em;
+  border: 1px solid color-mix(in oklch, var(--rich-muted) 35%, transparent);
 }
 
 .rich-tool .rich-page wg-content th,
 .rich-tool .rich-page wg-content td {
-  border: 1px solid var(--rich-border);
+  border: 0.5px solid color-mix(in oklch, var(--rich-muted) 35%, transparent);
   padding: 0.35em 0.55em;
   vertical-align: top;
   min-width: 3rem;
 }
 
 .rich-tool .rich-page wg-content th {
-  background: var(--rich-sunk);
-  font-weight: 600;
+  background: color-mix(in oklch, var(--rich-muted) 12%, transparent);
+  font-weight: inherit;
   text-align: start;
 }
 
@@ -630,58 +639,39 @@
   outline-offset: -2px;
 }
 
-/* Table handles: a grip along each row and column that selects it, and a "+"
-   past the last of each that grows the table. Drawn in an overlay rather than
-   in the table, which the editor owns. */
-.rich-table-handles {
+/* The "•••" at a table's (or a column layout's) top-trailing corner, and its
+   menu. Drawn in an overlay rather than in the table, which the editor owns. */
+.rich-corner-layer {
   position: absolute;
   inset: 0;
   z-index: 20;
   pointer-events: none;
 }
 
-/* `all: unset` first: it would otherwise wipe the positioning these need. */
-.rich-table-plus {
+.rich-corner-button {
   all: unset;
-}
-
-.rich-table-grip,
-.rich-table-plus {
   position: absolute;
-  pointer-events: auto;
-  cursor: pointer;
-}
-
-.rich-table-grip {
-  border-radius: 3px;
-  background: var(--rich-border);
-  opacity: 0.6;
-}
-
-.rich-table-grip:hover {
-  background: var(--rich-accent);
-  opacity: 1;
-}
-
-.rich-table-plus {
+  width: 20px;
+  height: 20px;
   display: grid;
   place-items: center;
-  border-radius: 4px;
-  color: var(--rich-faint);
-  background: var(--rich-sunk);
+  border-radius: 50%;
+  cursor: pointer;
+  pointer-events: auto;
+  color: var(--rich-muted);
+  background: var(--rich-fill);
 }
+.rich-corner-button .rich-corner-dot { fill: var(--rich-fill); }
+.rich-corner-button:hover,
+.rich-corner-button.open { color: var(--rich-accent); }
+.rich-corner-button:focus-visible { outline: 2px solid var(--rich-accent); outline-offset: 1px; }
 
-.rich-table-plus.column {
-  width: 14px;
+.rich-corner-menu {
+  pointer-events: auto;
 }
-
-.rich-table-plus.row {
-  height: 14px;
-}
-
-.rich-table-plus:hover {
-  color: var(--rich-line);
-  background: var(--rich-border);
+.rich-corner-menu .rich-popover-body {
+  min-width: 190px;
+  padding: 5px;
 }
 
 /* Highlights: lush's palette (SpanDoc.swift `Highlight`): each hue laid over
@@ -907,15 +897,30 @@
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    rgb(0 0 0 / 0.5) var(--rich-bar),
-    #000 calc(var(--rich-bar) + 24px)
+    rgb(0 0 0 / 0.5) calc(var(--rich-bar) + var(--rich-find-room, 0px)),
+    #000 calc(var(--rich-bar) + var(--rich-find-room, 0px) + 24px)
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    rgb(0 0 0 / 0.5) var(--rich-bar),
-    #000 calc(var(--rich-bar) + 24px)
+    rgb(0 0 0 / 0.5) calc(var(--rich-bar) + var(--rich-find-room, 0px)),
+    #000 calc(var(--rich-bar) + var(--rich-find-room, 0px) + 24px)
   );
+}
+
+/* lush's frost: a band of glass under the bar, solid at the top and gone
+   24pt below the bar, over the note fading out beneath it. */
+.rich-topfrost {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: calc(var(--rich-bar) + 24px);
+  z-index: 29;
+  pointer-events: none;
+  background: color-mix(in oklch, var(--rich-fill) 20%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.35) var(--rich-bar), transparent calc(var(--rich-bar) + 24px));
+  mask-image: linear-gradient(to bottom, #000 0, rgb(0 0 0 / 0.35) var(--rich-bar), transparent calc(var(--rich-bar) + 24px));
 }
 
 .rich-topbar {
@@ -934,6 +939,19 @@
 .rich-topbar-right {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+/* who else is here, just before the ••• pill (lush's PresenceFacesView) */
+.rich-topbar-faces {
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+.rich-tool .rich-topbar-faces .rich-presence {
+  position: static;
+  gap: 3px;
 }
 
 .rich-bar-pill {
@@ -1170,6 +1188,15 @@
   color: var(--rich-accent);
 }
 .rich-style-marker { color: var(--rich-muted); font-size: 12px; min-width: 0.8em; }
+/* Jost's bullet is a speck at this size: draw the dot, as lush draws bullets */
+.rich-style-marker.rich-style-dot { display: grid; place-items: center; }
+.rich-style-marker.rich-style-dot::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
 .rich-style-h1 .rich-style-label { font-size: 19px; font-weight: 700; }
 .rich-style-h2 .rich-style-label { font-size: 15px; font-weight: 700; }
 .rich-style-h3 .rich-style-label { font-size: 13px; font-weight: 600; }
@@ -1196,6 +1223,7 @@
   position: absolute;
   inset: 0;
   z-index: 60;
+  container-type: inline-size;
   display: grid;
   place-items: start center;
   padding: calc(var(--rich-bar) + 12px) 16px 16px;
@@ -1455,6 +1483,8 @@
   margin: 0 auto;
   max-width: 440px;
   height: 264px;
+  /* a short pane gets the island it has room for, scrolling */
+  max-height: calc(100% - 24px);
   display: flex;
   flex-direction: column;
   border-radius: 28px;
@@ -1524,6 +1554,76 @@
 .rich-sheet-note,
 .rich-sheet-status { margin: 0; font-size: 12px; color: var(--rich-muted); }
 .rich-sheet-status:empty { display: none; }
+
+/* A tall sheet scrolls inside the pane rather than running off it. */
+.rich-sheet > form { max-height: 100%; overflow-y: auto; }
+
+/* Logline…: lush's editor, its sections as a grouped form. */
+.rich-sheet > .rich-logline-card { width: min(420px, 100%); gap: 8px; }
+.rich-form-section {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--rich-muted);
+}
+.rich-sheet .rich-form-field { grid-template-columns: 7.5em 1fr; font-size: 13px; }
+.rich-sheet .rich-form-field span { color: var(--rich-line); }
+.rich-sheet input[type="datetime-local"],
+.rich-sheet .rich-form-extra input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 0.5px solid color-mix(in oklch, var(--rich-line) 22%, transparent);
+  border-radius: 7px;
+  background: var(--rich-fill);
+  color: var(--rich-line);
+  font: 13px var(--rich-family);
+  outline: none;
+}
+.rich-sheet input[type="datetime-local"]:focus,
+.rich-sheet .rich-form-extra input:focus {
+  border-color: var(--rich-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--rich-accent) 22%, transparent);
+}
+.rich-sheet .rich-form-extra { align-items: center; }
+.rich-sheet .rich-extra-remove { color: var(--rich-muted); font-size: 16px; line-height: 1; padding: 0 4px; }
+.rich-sheet .rich-form-add { align-self: flex-start; font-size: 13px; }
+.rich-form-warning::before { content: "⚠︎ "; }
+
+/* An HTML block's source: the markup beside what it draws. */
+.rich-sheet > .rich-html-card { width: min(720px, 100%); }
+.rich-html-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-height: 0;
+}
+.rich-html-source,
+.rich-html-preview {
+  box-sizing: border-box;
+  width: 100%;
+  height: 300px;
+  border: 0.5px solid color-mix(in oklch, var(--rich-line) 22%, transparent);
+  border-radius: 8px;
+}
+.rich-html-source {
+  resize: none;
+  padding: 8px 10px;
+  background: var(--rich-fill);
+  color: var(--rich-line);
+  font: 12px/1.45 var(--rich-mono);
+  outline: none;
+}
+.rich-html-source:focus { border-color: var(--rich-accent); }
+.rich-html-preview { background: #fff; }
+@container (max-width: 560px) {
+  .rich-html-split { grid-template-columns: 1fr; }
+  .rich-html-source,
+  .rich-html-preview { height: 180px; }
+}
 
 /* Find in note: a bar under the top bar. */
 .rich-find {

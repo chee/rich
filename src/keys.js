@@ -13,6 +13,7 @@ import { GardState } from "wordgard/state"
 import { Command, toggleMark } from "wordgard/command"
 import { Code, Strikethrough, Subscript, Superscript, Underline } from "wordgard/types"
 import { toggleBaseline } from "./baseline.js"
+import { indentLines } from "./block-style.js"
 
 const later = (load, name) => wg => {
   load().then(module => module[name](wg))
@@ -26,8 +27,9 @@ const run = (item, context) => wg => {
   return true
 }
 
+// Cmd-] and Cmd-[, lush's indent and outdent (lists nest).
 function indent(wg, direction) {
-  import("./topbar.js").then(bar => bar.indentBlock(wg, direction))
+  indentLines(wg, direction)
   return true
 }
 

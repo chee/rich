@@ -76,16 +76,38 @@ function setText(doc, path, value) {
   }
 }
 
+// The title from the editor's document, which is what a write just put in
+// `content`: the lines of its top-level blocks in turn, only as far as the
+// first one with anything on it. (A line never runs from one top-level
+// block into the next, since each starts with a marker of its own.) Reading
+// the whole of `content` back instead cost as much as the rest of a
+// keystroke on a long note. Only a note with nothing outside its tables and
+// columns is read to the end.
+function titleFromEditor(written) {
+  const lines = node => spansFromDoc(richAdapter, richAdapter.schema.doc([node]))
+  for (const skipContainers of [true, false]) {
+    for (const node of written.content) {
+      const title = titleIn(lines(node), skipContainers)
+      if (title) return title
+    }
+  }
+  return ""
+}
+
 // Write the derived title into `title` and `@patchwork.title`, as lush does
-// on every write. Called inside the change that wrote the content. Only for
-// notes: a document that merely has a rich text field (a blog post, whose
-// title is its own) keeps its title.
-export function syncTitle(doc) {
+// on every write. Called inside the change that wrote the content, with the
+// editor's document when there is one. Only for notes: a document that merely
+// has a rich text field (a blog post, whose title is its own) keeps its
+// title.
+export function syncTitle(doc, written) {
   const type = name(doc["@patchwork"]?.type)
   if (type !== "rich" && type !== "lush") return
-  let title
+  let title = null
   try {
-    title = titleFromSpans(am.spans(doc, ["content"]))
+    if (written) title = titleFromEditor(written)
+  } catch {}
+  try {
+    title ??= titleFromSpans(am.spans(doc, ["content"]))
   } catch {
     return
   }

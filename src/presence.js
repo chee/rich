@@ -318,7 +318,12 @@ export function presence(context) {
 
       renderFaces() {
         if (!this.strip) return
+        // beside the top bar's pills, once there is a bar
+        const slot = element.querySelector(".rich-topbar-faces")
+        if (slot && this.strip.parentNode !== slot) slot.append(this.strip)
         this.strip.replaceChildren()
+        // as in lush, the row only shows when someone else is here
+        if (!this.remotePeers().length) return
         if (self.contactUrl) {
           this.strip.append(
             face({

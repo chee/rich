@@ -115,11 +115,13 @@ const toJSON = spans =>
     })),
   )
 
-// A note written by lush: `@patchwork`, a title, and the given spans.
-function lushNote(spans) {
+// A note written by lush: `@patchwork`, a title, and the given spans. `type`
+// makes it some other kind of document with a rich text `content` (the site
+// editor's posts are "cherries-post").
+function lushNote(spans, { type = "rich" } = {}) {
   const note = repo.create()
   note.change(doc => {
-    doc["@patchwork"] = { type: "rich", title: "", suggestedImportUrl: "automerge:2XoPZihn6Vo2aqeVu2WN39W8cdAN" }
+    doc["@patchwork"] = { type, title: "", suggestedImportUrl: "automerge:2XoPZihn6Vo2aqeVu2WN39W8cdAN" }
     doc.title = ""
     doc.content = ""
     am.updateSpans(doc, ["content"], fromJSON(spans))
@@ -129,9 +131,9 @@ function lushNote(spans) {
 
 // Mount the tool on a fresh lush note instead of the harness's own.
 let current = { handle, cleanup, editor }
-function mount(spans) {
+function mount(spans, options) {
   current.cleanup()
-  const note = lushNote(spans)
+  const note = lushNote(spans, options)
   const done = RichTool(note, document.getElementById("app"))
   const wg = document.querySelector(".rich-page").wordgard
   current = { handle: note, cleanup: done, editor: wg }

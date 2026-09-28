@@ -6,8 +6,10 @@
 // The pencil asks the editor to edit it (see htmlEditing in features.js): the
 // element draws, the document is the editor's business.
 import { Leaf, Node } from "wordgard/doc"
-import { Dialog, Wordgard } from "wordgard/editor"
+import { Wordgard } from "wordgard/editor"
 import { el } from "./dom.js"
+import { insertBlocks } from "./insert.js"
+import { openSheet, sheetButton, sheetButtons } from "./sheet.js"
 
 const NAME = "rich-html"
 
@@ -23,19 +25,22 @@ export const HtmlBlock = Leaf.Type.define("HtmlBlock", {
 
 export const HTML_PLACEHOLDER = "<p>hello</p>"
 
+// HTML Block: lush puts `<p>hello</p>` in the note and opens its source.
 export function insertHtmlBlock(wg) {
-  wg.dispatch({
-    changes: {
-      from: wg.state.selection.head,
-      insert: [HtmlBlock.of(HTML_PLACEHOLDER)],
-      fit: true,
-    },
-    scrollIntoView: true,
+  insertBlocks(wg, [HtmlBlock.of(HTML_PLACEHOLDER)])
+  // the block is just above the caret now
+  let pos = null
+  wg.state.doc.iterate(0, wg.state.selection.head, (node, at) => {
+    if (node.type === HtmlBlock) pos = at
   })
-  wg.focus()
+  if (pos == null) return
+  wg.flush()
+  const element = wg.nodeDOM(pos)
+  if (element) editHtml(wg, element)
 }
 
-// The source, in a textarea, replacing the leaf it came from.
+// The source, lush's HTML sheet: the markup beside what it draws, Cancel and
+// Save.
 function editHtml(wg, element) {
   let found
   try {
@@ -46,34 +51,42 @@ function editHtml(wg, element) {
   if (!found) return
   const node = wg.state.doc.resolve(found.pos).nodeAfter
   if (!node) return
-  const { result } = Dialog.show(wg, {
-    class: "rich-dialog rich-html-dialog",
-    focus: "textarea",
-    content: () =>
-      el(
-        "form",
-        {},
-        el("label", {}, "HTML"),
-        el("textarea", { name: "html", rows: 8, spellcheck: "false" }, node.param),
-        el("button", { type: "submit" }, "Save"),
-      ),
+  const parent = wg.dom.closest(".rich-tool") ?? wg.dom.parentElement
+  const source = el("textarea", { class: "rich-html-source", name: "html", rows: 12, spellcheck: "false", "aria-label": "HTML" }, node.param)
+  const preview = el("iframe", { class: "rich-html-preview", sandbox: "allow-scripts", title: "Preview", srcdoc: node.param })
+  let timer = null
+  source.addEventListener("input", () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => (preview.srcdoc = source.value), 300)
   })
-  result.then(form => {
-    const source = form?.elements?.html?.value
-    if (source == null) return
-    // The document may have moved under the dialog, so ask again.
-    let at
-    try {
-      at = wg.nodeFromDOM(element)
-    } catch {
-      return
-    }
-    if (!at) return
-    wg.dispatch({
-      changes: { from: at.pos, to: at.pos + 1, insert: [HtmlBlock.of(source)] },
-      userEvent: "html.edit",
-    })
-  })
+  const card = el(
+    "form",
+    {
+      class: "rich-html-card",
+      onsubmit: event => {
+        event.preventDefault()
+        sheet.close()
+        // The document may have moved under the sheet, so ask again.
+        let at
+        try {
+          at = wg.nodeFromDOM(element)
+        } catch {
+          return
+        }
+        if (!at) return
+        wg.dispatch({
+          changes: { from: at.pos, to: at.pos + 1, insert: [HtmlBlock.of(source.value)] },
+          userEvent: "html.edit",
+        })
+        wg.focus()
+      },
+    },
+    el("h3", { class: "rich-sheet-title" }, "HTML"),
+    el("div", { class: "rich-html-split" }, source, preview),
+    sheetButtons(null, [sheetButton("Cancel", () => sheet.cancel()), sheetButton("Save", null, { prominent: true, type: "submit" })]),
+  )
+  const sheet = openSheet(parent, { label: "HTML", className: "rich-html-sheet", card, onCancel: () => wg.focus() })
+  source.focus()
 }
 
 export function htmlEditing() {

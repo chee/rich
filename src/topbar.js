@@ -7,9 +7,9 @@
 // highlights, the block styles each drawn in its own style, and the indent
 // pill — every one of them writing exactly what lush writes.
 import * as am from "@automerge/automerge"
-import { Dialog, Wordgard } from "wordgard/editor"
+import { Wordgard } from "wordgard/editor"
 import { Leaf } from "wordgard/doc"
-import { Command, selectedTextblocks, toggleMark } from "wordgard/command"
+import { Command, toggleMark } from "wordgard/command"
 import {
   Code,
   CodeBlock,
@@ -29,12 +29,14 @@ import {
 } from "wordgard/types"
 import { CellSelection } from "wordgard/table"
 import { el, svg } from "./dom.js"
-import { Column, Columns, Embed, EmbedTool, FONTS, Font, Indent } from "./adapter.js"
-import { HIGHLIGHTS, Highlight, highlightAt, highlightChanges } from "./highlight.js"
+import { openSheet, sheetButton, sheetButtons } from "./sheet.js"
+import { Column, Columns, Embed, EmbedTool, FONTS, Font } from "./adapter.js"
+import { HIGHLIGHTS, Highlight, highlightAt } from "./highlight.js"
+import { markAt, valuedMarkChanges } from "./marks.js"
 import { baselineAt, toggleBaseline } from "./baseline.js"
-import { blockTypes, currentStyle, toBody } from "./block-types.js"
-import { liftListItem, sinkListItem, listItemAt } from "./lists.js"
-import { Logline, loglineNow, stamp, timeZone } from "./logline.js"
+import { blockTypes, currentStyle } from "./block-types.js"
+import { indentLines } from "./block-style.js"
+import { Logline, loglineNow, loglineSheet, stamp } from "./logline.js"
 import { insertHtmlBlock } from "./html-block.js"
 import { insertBlocks } from "./insert.js"
 import { createFileDoc, pickFiles } from "./files.js"
@@ -117,68 +119,29 @@ function markIn(state, type) {
 
 const active = (state, mark) => Boolean(markIn(state, mark.type ?? mark))
 
-// Set a valued mark (a font) over the selection, or clear it. With no
-// selection, the next typing wears it.
+// Set a valued mark (a font, a highlight) over the selection, or clear it.
+// With no selection, the next typing wears it.
 function setValued(wg, type, value) {
   const state = wg.state
   const { from, to } = state.selection
   if (from === to) {
-    const current = type.isInSet(marksAt(state))
+    const current = type.isInSet(state.sel.activeMarks)
     if (current) Command.dispatch(wg, toggleMark, current)
     if (value) Command.dispatch(wg, toggleMark, type.of(value))
     return
   }
-  const changes = []
-  const seen = new Set()
-  state.doc.iterate(from, to, node => {
-    const mark = type.isInSet(node.marks)
-    if (!mark || seen.has(mark.value)) return
-    seen.add(mark.value)
-    changes.push({ from, to, remove: mark })
-  })
-  if (value) changes.push({ from, to, add: type.of(value) })
+  const changes = valuedMarkChanges(state.doc, type, value, from, to)
   if (changes.length) wg.dispatch({ changes, userEvent: "format" })
 }
 
-function setHighlight(wg, name) {
-  const { from, to } = wg.state.selection
-  if (from === to) return setValued(wg, Highlight, name)
-  wg.dispatch({ changes: highlightChanges(wg.state.doc, name, from, to), userEvent: "format.highlight" })
-}
+const setHighlight = (wg, name) => setValued(wg, Highlight, name)
 
 // ---------------------------------------------------------------------------
-// Indenting: lists nest, everything else takes lush's `indent` attr.
+// Indenting: lists nest, everything else takes lush's `indent` attr, line by
+// line (see block-style.js).
 // ---------------------------------------------------------------------------
 
-export function indentBlock(wg, direction) {
-  const state = wg.state
-  if (listItemAt(state)) {
-    const spec = direction > 0 ? sinkListItem(state) : liftListItem(state)
-    if (spec) {
-      wg.dispatch(spec)
-      return true
-    }
-    // A top-level item outdents out of its list, as in lush.
-    if (direction < 0) {
-      toBody(wg)
-      return true
-    }
-    return false
-  }
-  const changes = []
-  for (const block of selectedTextblocks(state)) {
-    const type = block.node.type
-    if (![Paragraph.type, CodeBlock.type].includes(type) && type.name !== "Heading") continue
-    const current = Indent.isInSet(block.node.tag.marks)
-    const level = Math.max(0, (current?.value ?? 0) + direction)
-    if (level === (current?.value ?? 0)) continue
-    if (current) changes.push({ from: block.before, remove: current })
-    if (level > 0) changes.push({ from: block.before, add: Indent.of(level) })
-  }
-  if (!changes.length) return false
-  wg.dispatch({ changes, userEvent: "format.indent" })
-  return true
-}
+export const indentBlock = (wg, direction) => indentLines(wg, direction)
 
 // ---------------------------------------------------------------------------
 // Popovers
@@ -216,6 +179,7 @@ class Popover {
     const island = Boolean(this.title) && this.bar.narrow()
     this.element.classList.toggle("rich-island", island)
     if (island) {
+      this.body.style.maxHeight = ""
       if (!this.header) {
         this.header = el(
           "div",
@@ -244,6 +208,11 @@ class Popover {
     this.element.style.left = `${left}px`
     this.element.style.top = `${button.bottom - host.top + 10}px`
     this.arrow.style.left = `${centre - left}px`
+    // As tall as the note's pane leaves room for, not the window: a short
+    // pane in a host scrolls the popover rather than cutting it off.
+    const pane = this.bar.context.element.getBoundingClientRect()
+    const bottom = Math.min(pane.bottom, window.innerHeight)
+    this.body.style.maxHeight = `${Math.max(96, Math.floor(bottom - button.bottom - 10 - 12))}px`
   }
 
   close() {
@@ -306,7 +275,7 @@ const STYLE_GROUPS = [
   ["quote"],
 ]
 
-const STYLE_MARKERS = { bullet: "•", ordered: "1.", todo: "☐", quote: "|" }
+const STYLE_MARKERS = { bullet: "", ordered: "1.", todo: "☐", quote: "|" }
 
 function formatPopover(bar) {
   const { wg } = bar
@@ -353,7 +322,7 @@ function formatPopover(bar) {
       ),
     )
 
-    const font = markIn(state, Font)?.value ?? null
+    const font = markAt(state, Font)?.value ?? null
     const fontButton = (label, family, isActive, run, title = label) => {
       const node = makeButton(`rich-font-button rich-font-sample-${family}`, title, label, () => {
         run()
@@ -409,7 +378,9 @@ function formatPopover(bar) {
         const block = byId[id]
         const node = makeButton(`rich-style-row rich-style-${id}`, block.name, [
           el("span", { class: "rich-style-check" }, id === current ? svg(ICONS.check, 11) : null),
-          STYLE_MARKERS[id] ? el("span", { class: "rich-style-marker" }, STYLE_MARKERS[id]) : null,
+          id in STYLE_MARKERS
+            ? el("span", { class: `rich-style-marker${id === "bullet" ? " rich-style-dot" : ""}`, "aria-hidden": "true" }, STYLE_MARKERS[id])
+            : null,
           el("span", { class: "rich-style-label" }, block.name),
         ], () => {
           block.apply(wg)
@@ -453,10 +424,14 @@ function formatPopover(bar) {
             const block = wg.state.sel.head.textblockParent
             if (!block) return
             const old = CodeBlockLanguage.isInSet(block.node.tag.marks)
-            const changes = []
-            if (old) changes.push({ from: block.before, remove: old })
-            if (select.value !== "plain") changes.push({ from: block.before, add: CodeBlockLanguage.of(select.value) })
-            if (changes.length) wg.dispatch({ changes, userEvent: "format.language" })
+            // an add replaces the language there was; only plain removes it
+            const change =
+              select.value !== "plain"
+                ? { from: block.before, add: CodeBlockLanguage.of(select.value) }
+                : old
+                  ? { from: block.before, remove: old }
+                  : null
+            if (change) wg.dispatch({ changes: [change], userEvent: "format.language" })
             wg.focus()
           },
         },
@@ -516,7 +491,6 @@ function linkRange(state) {
 
 export function linkDialog(bar) {
   const { wg, context } = bar
-  context.element.querySelector(".rich-link-dialog")?.remove()
   const { from, to, existing } = linkRange(wg.state)
   const input = el("input", {
     class: "rich-link-input",
@@ -529,18 +503,11 @@ export function linkDialog(bar) {
     value: existing?.value ?? "",
   })
   const finish = href => {
-    close()
+    sheet.close()
     wg.dispatch({ selection: { anchor: from, head: to } })
     if (href != null && from !== to) {
-      const changes = []
-      const seen = new Set()
-      wg.state.doc.iterate(from, to, node => {
-        const mark = Link.isInSet(node.marks)
-        if (!mark || seen.has(mark.value)) return
-        seen.add(mark.value)
-        changes.push({ from, to, remove: mark })
-      })
-      if (href) changes.push({ from, to, add: Link.of(href) })
+      // An unchanged link is left as it is; a new one replaces any other.
+      const changes = valuedMarkChanges(wg.state.doc, Link, href, from, to)
       if (changes.length) wg.dispatch({ changes, userEvent: "format.link" })
     } else if (href != null) {
       // nothing selected: the next typing wears the link
@@ -549,7 +516,7 @@ export function linkDialog(bar) {
     }
     wg.focus()
   }
-  const apply = el("button", { class: "rich-button prominent", type: "submit", disabled: !input.value.trim() }, "Apply")
+  const apply = sheetButton("Apply", null, { prominent: true, type: "submit", disabled: !input.value.trim() })
   const card = el(
     "form",
     {
@@ -564,49 +531,18 @@ export function linkDialog(bar) {
     },
     el("h3", { class: "rich-sheet-title" }, "Link"),
     input,
-    el(
-      "div",
-      { class: "rich-sheet-buttons" },
-      el("button", { class: "rich-button", type: "button", disabled: !existing, onclick: () => finish("") }, "Remove"),
-      el("span", { class: "rich-sheet-spacer" }),
-      el("button", { class: "rich-button", type: "button", onclick: () => finish(null) }, "Cancel"),
+    sheetButtons(sheetButton("Remove", () => finish(""), { disabled: !existing }), [
+      sheetButton("Cancel", () => finish(null)),
       apply,
-    ),
+    ]),
   )
   input.addEventListener("input", () => {
     apply.disabled = !input.value.trim()
   })
-  const sheet = el(
-    "div",
-    {
-      class: "rich-sheet rich-link-dialog",
-      role: "dialog",
-      "aria-modal": "true",
-      "aria-label": "Link",
-      onmousedown: event => {
-        if (event.target === sheet) {
-          event.preventDefault()
-          finish(null)
-        }
-      },
-    },
-    card,
-  )
-  const onKey = event => {
-    if (event.key !== "Escape") return
-    event.preventDefault()
-    event.stopPropagation()
-    finish(null)
-  }
-  function close() {
-    document.removeEventListener("keydown", onKey, true)
-    sheet.remove()
-  }
-  document.addEventListener("keydown", onKey, true)
-  context.element.append(sheet)
+  const sheet = openSheet(context.element, { label: "Link", className: "rich-link-dialog", card, onCancel: () => finish(null) })
   input.focus()
   input.select()
-  return sheet
+  return sheet.sheet
 }
 
 // ---------------------------------------------------------------------------
@@ -707,80 +643,11 @@ function liveTranscription(bar) {
   recognition.start()
 }
 
-// Logline…: the facts of a logline as a form, extras as key/value rows.
+// Logline…: lush's logline editor (logline.js), for the logline selected or a
+// new one.
 function loglineForm(bar, existing) {
-  const { wg } = bar
-  let facts = {}
-  const found = existing ?? selectedLogline(wg.state)
-  if (found) {
-    try {
-      facts = JSON.parse(found.node.param || "{}")
-    } catch {}
-  } else {
-    facts = { ts: stamp(), tz: timeZone() }
-  }
-  const known = ["ts", "created", "tz", "location", "lat", "lon", "weather"]
-  const field = (name, label, type = "text") =>
-    el(
-      "label",
-      { class: "rich-form-field" },
-      el("span", {}, label),
-      el("input", { name, type, value: facts[name] ?? "", step: type === "number" ? "any" : null }),
-    )
-  const extras = el("div", { class: "rich-form-extras" })
-  const extraRow = (key = "", value = "") =>
-    el(
-      "div",
-      { class: "rich-form-extra" },
-      el("input", { class: "rich-extra-key", placeholder: "key", value: key }),
-      el("input", { class: "rich-extra-value", placeholder: "value", value: String(value) }),
-      el("button", { type: "button", class: "rich-extra-remove", title: "Remove", onclick: event => event.target.closest(".rich-form-extra").remove() }, "×"),
-    )
-  for (const [key, value] of Object.entries(facts)) {
-    if (!known.includes(key) && key !== "pending") extras.append(extraRow(key, value))
-  }
-  const stampKey = facts.created != null && facts.ts == null ? "created" : "ts"
-  const { result } = Dialog.show(wg, {
-    class: "rich-dialog rich-logline-dialog",
-    focus: "input",
-    content: () =>
-      el(
-        "form",
-        {},
-        el("h3", {}, "Logline"),
-        field(stampKey, stampKey === "created" ? "Created" : "Time"),
-        field("tz", "Time zone"),
-        field("location", "Location"),
-        field("lat", "Latitude", "number"),
-        field("lon", "Longitude", "number"),
-        field("weather", "Weather"),
-        extras,
-        el("button", { type: "button", class: "rich-form-add", onclick: () => extras.append(extraRow()) }, "Add Field"),
-        el("button", { type: "submit" }, found ? "Save" : "Insert"),
-      ),
-  })
-  result.then(form => {
-    if (!form?.elements) return
-    const next = {}
-    for (const name of [stampKey, "tz", "location", "weather"]) {
-      const value = form.elements[name]?.value?.trim()
-      if (value) next[name] = value
-    }
-    for (const name of ["lat", "lon"]) {
-      const value = form.elements[name]?.value
-      if (value !== "" && value != null && !Number.isNaN(Number(value))) next[name] = Number(value)
-    }
-    for (const row of form.querySelectorAll(".rich-form-extra")) {
-      const key = row.querySelector(".rich-extra-key").value.trim()
-      const value = row.querySelector(".rich-extra-value").value
-      if (key && !(key in next)) next[key] = value
-    }
-    const leaf = Logline.of(JSON.stringify(next))
-    if (found) {
-      wg.dispatch({ changes: { from: found.pos, to: found.pos + 1, insert: [leaf] }, userEvent: "input.logline" })
-      wg.focus()
-    } else insertBlocks(wg, [leaf])
-  })
+  const { wg, context } = bar
+  return loglineSheet(wg, context.element, existing ?? selectedLogline(wg.state))
 }
 
 function selectedLogline(state) {
@@ -818,13 +685,12 @@ function embedFor(url, type) {
 
 function patchworkDocForm(bar) {
   const { wg, context } = bar
-  context.element.querySelector(".rich-doc-sheet")?.remove()
   const at = wg.state.selection
   const types = globalThis.repo
     ? listPlugins("patchwork:datatype").filter(type => type?.id && !type.unlisted && type.id !== "file")
     : []
   const insert = leaf => {
-    close()
+    sheet.close()
     wg.dispatch({ selection: { anchor: at.anchor, head: at.head } })
     insertBlocks(wg, [leaf])
   }
@@ -870,46 +736,16 @@ function patchworkDocForm(bar) {
       : el("p", { class: "rich-sheet-note" }, "There is no repo here to make a document in. Embed one by its URL."),
     el("label", { class: "rich-sheet-label" }, "Or embed a document", url),
     status,
-    el(
-      "div",
-      { class: "rich-sheet-buttons" },
-      el("span", { class: "rich-sheet-spacer" }),
-      el("button", { class: "rich-button", type: "button", onclick: () => { close(); wg.focus() } }, "Cancel"),
-      el("button", { class: "rich-button prominent", type: "submit" }, "Embed"),
-    ),
+    sheetButtons(null, [sheetButton("Cancel", () => sheet.cancel()), sheetButton("Embed", null, { prominent: true, type: "submit" })]),
   )
-  const sheet = el(
-    "div",
-    {
-      class: "rich-sheet rich-doc-sheet",
-      role: "dialog",
-      "aria-modal": "true",
-      "aria-label": "New Patchwork Document",
-      onmousedown: event => {
-        if (event.target === sheet) {
-          event.preventDefault()
-          close()
-          wg.focus()
-        }
-      },
-    },
+  const sheet = openSheet(context.element, {
+    label: "New Patchwork Document",
+    className: "rich-doc-sheet",
     card,
-  )
-  const onKey = event => {
-    if (event.key !== "Escape") return
-    event.preventDefault()
-    event.stopPropagation()
-    close()
-    wg.focus()
-  }
-  function close() {
-    document.removeEventListener("keydown", onKey, true)
-    sheet.remove()
-  }
-  document.addEventListener("keydown", onKey, true)
-  context.element.append(sheet)
+    onCancel: () => wg.focus(),
+  })
   ;(card.querySelector(".rich-doc-type") ?? url).focus()
-  return sheet
+  return sheet.sheet
 }
 
 export function insertTable(wg, rows = 3, columns = 3) {
@@ -988,9 +824,10 @@ function noteMenu(bar) {
   const hidden = context.element.classList.contains("rich-hide-checked")
   const checked = hasChecked(wg.state.doc)
   const items = [
-    // A duplicate is a new document, so it needs a repo to make one in; a
-    // host without one (the site editor) duplicates its own way.
-    globalThis.repo && context.handle ? menuItem("Duplicate", "duplicate", act(() => duplicate(bar))) : null,
+    // A duplicate is a new note, so it needs a repo to make one in, and only
+    // a note is rich's to copy: a host whose document is something else (the
+    // site editor's posts) duplicates it its own way, into its own lists.
+    globalThis.repo && isNote(context.handle?.doc?.()) ? menuItem("Duplicate", "duplicate", act(() => duplicate(bar))) : null,
     context.handle?.url
       ? menuItem("Copy Link", "copyLink", act(() => navigator.clipboard?.writeText(context.handle.url)))
       : null,
@@ -1039,6 +876,9 @@ async function exportAs(bar, format) {
   const { exportNote } = await import("./export.js")
   if (bar.context.handle) exportNote(bar.context.handle, format)
 }
+
+const typeName = value => (typeof value === "string" ? value : (value?.val ?? ""))
+const isNote = doc => ["rich", "lush"].includes(typeName(doc?.["@patchwork"]?.type))
 
 async function duplicate(bar) {
   const { context } = bar
@@ -1270,8 +1110,15 @@ class TopBar {
       { class: "rich-topbar" },
       el("div", { class: "rich-topbar-side" }),
       el("div", { class: "rich-bar-pill rich-bar-centre" }, this.aa, this.clip),
-      el("div", { class: "rich-topbar-side rich-topbar-right" }, el("div", { class: "rich-bar-pill" }, this.more, this.info)),
+      el(
+        "div",
+        { class: "rich-topbar-side rich-topbar-right" },
+        // presence.js puts the faces of whoever else is here in this
+        el("div", { class: "rich-topbar-faces" }),
+        el("div", { class: "rich-bar-pill" }, this.more, this.info),
+      ),
     )
+    this.frost = el("div", { class: "rich-topfrost", "aria-hidden": "true" })
   }
 
   // Phone width: lush's iOS layout, where the format popover is an island.
@@ -1291,7 +1138,8 @@ class TopBar {
 
   connect() {
     this.context.element.classList.add("rich-has-topbar")
-    this.context.element.append(this.layer)
+    this.context.element.append(this.frost, this.layer)
+    this.wg.dom.addEventListener("rich-logline-edit", this.onLoglineEdit)
     this.sync()
   }
 
@@ -1299,7 +1147,19 @@ class TopBar {
     this.popover?.close()
     this.transcribing?.stop()
     this.layer.remove()
+    this.frost.remove()
+    this.wg.dom.removeEventListener("rich-logline-edit", this.onLoglineEdit)
     this.context.element.classList.remove("rich-has-topbar")
+  }
+
+  // A logline asks to be edited (double-clicked): Logline… for that one.
+  onLoglineEdit = event => {
+    let found = null
+    try {
+      found = this.wg.nodeFromDOM(event.target.closest?.("rich-logline") ?? event.target)
+    } catch {}
+    const node = found && this.wg.state.doc.resolve(found.pos).nodeAfter
+    if (node?.type === Logline) loglineForm(this, { node, pos: found.pos })
   }
 
   remove() {
@@ -1317,7 +1177,7 @@ class TopBar {
     const state = this.wg.state
     const glyph = this.aa.firstChild
     const marks = [Strong, Emphasis, Underline, Strikethrough, Code].filter(mark => active(state, mark))
-    const font = markIn(state, Font)?.value
+    const font = markAt(state, Font)?.value
     glyph.className = [
       "rich-aa-glyph",
       ...marks.map(mark => `wears-${mark.type?.name ?? mark.name}`),

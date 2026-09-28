@@ -22,8 +22,9 @@ export interface SyncPluginConfig {
   handle: DocHandle<unknown>
   path: am.Prop[]
   /// Called inside every local write's change, after the content is
-  /// written — for fields derived from it, like the title.
-  onWrite?: (doc: am.Doc<unknown>) => void
+  /// written — for fields derived from it, like the title. `written` is
+  /// the editor's document, which the content now matches.
+  onWrite?: (doc: am.Doc<unknown>, written: Plot.Doc) => void
 }
 
 /// Create the editor extension that keeps a wordgard editor in sync
@@ -127,7 +128,7 @@ export function automergeSyncPlugin({
                 spansConfig,
               )
             }
-            onWrite?.(doc)
+            onWrite?.(doc, this.wg.state.doc)
           })
           this.reconciledHeads = am.getHeads(handle.doc())
         } finally {
